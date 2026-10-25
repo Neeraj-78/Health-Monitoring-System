@@ -139,7 +139,10 @@
     <section id="hospitalListContainer" class="section">
       <div class="hospital-heading">
         <h3>Nearby Hospitals & Clinics <span class="subtext">(within 10 km)</span></h3>
-        <button class="btn btn-light" id="showAllMapButton" type="button">Show all on map</button>
+        <div class="toolbar" style="margin:0;">
+          <button class="btn btn-light" id="showAllMapButton" type="button">Show all on map</button>
+          <button class="btn btn-light hidden" id="hideMapButton" type="button" aria-controls="map">Hide map</button>
+        </div>
       </div>
       <div id="hospitalList"></div>
     </section>
@@ -181,6 +184,7 @@
     ];
     const OVERPASS_CLIENT_TIMEOUT_MS = 12000;
     const SEARCH_RADIUS_METERS = 10000;
+    const MAX_DISPLAY_FACILITIES = 6; // Show only the six closest results.
     let facilitySearchSource = "OpenStreetMap";
 
     const app = initializeApp(firebaseConfig);
@@ -377,6 +381,7 @@
     byId("findHospitalsButton").addEventListener("click", () => findNearbyHospitals());
     byId("alertFindButton").addEventListener("click", () => findNearbyHospitals());
     byId("showAllMapButton").addEventListener("click", showAllHospitalsOnMap);
+    byId("hideMapButton").addEventListener("click", hideMap);
 
     async function findNearbyHospitals() {
       const statusEl = byId("mapStatus");
@@ -410,7 +415,7 @@
             byId("hospitalList").replaceChildren(makeEmptyState("No facilities were returned. This does not mean no hospitals exist nearby; map data and search services can be incomplete or temporarily unavailable."));
           } else {
             const sourceNote = facilitySearchSource === "Photon fallback" ? " (backup search; results may be incomplete)" : "";
-            statusEl.textContent = `Found ${facilities.length} mapped medical facilities within 10 km${sourceNote}. Select “View map” or “Show all on map”.`;
+            statusEl.textContent = `Showing the ${facilities.length} closest mapped medical facilities within 10 km${sourceNote}. Select “View map” or “Show all on map”.`;
             byId("hospitalListContainer").style.display = "block";
           }
         } catch (error) {
@@ -486,7 +491,8 @@
           const facilities = normalizeFacilities(result.elements, lat, lon);
           if (facilities.length > 0) {
             facilitySearchSource = "Overpass";
-            return facilities;
+            // Keep the six closest facilities so the list and map stay focused.
+            return facilities.slice(0, MAX_DISPLAY_FACILITIES);
           }
           failures.push(`${new URL(endpoint).hostname}: query succeeded but returned no matching facilities`);
         } catch (error) {
@@ -571,7 +577,7 @@
         });
       }
       facilities.sort((a, b) => a.distance - b.distance);
-      return facilities;
+      return facilities.slice(0, MAX_DISPLAY_FACILITIES);
     }
 
     function normalizeFacilities(elements, originLat, originLon) {
@@ -594,7 +600,7 @@
         found.push({ id: key, name, type: prettyType(kind), lat: latitude, lon: longitude, distance, tags });
       }
       found.sort((a, b) => a.distance - b.distance);
-      return found;
+      return found.slice(0, MAX_DISPLAY_FACILITIES);
     }
 
     function prettyType(value) {
@@ -661,7 +667,14 @@
         }).addTo(mapInstance);
       }
       byId("map").style.display = "block";
+      byId("hideMapButton").classList.remove("hidden");
       window.setTimeout(() => mapInstance.invalidateSize(), 100);
+    }
+
+    function hideMap() {
+      // Hide only the map; keep the nearby-facility list and markers cached.
+      byId("map").style.display = "none";
+      byId("hideMapButton").classList.add("hidden");
     }
 
     function clearMapMarkers() {
