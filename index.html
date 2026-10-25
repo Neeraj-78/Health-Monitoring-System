@@ -27,8 +27,18 @@
         .alert-box h3 { margin: 0 0 10px 0; color: #c0392b; }
         .btn { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1em; }
         .btn:hover { background: #2980b9; }
-        #map { height: 400px; width: 100%; border-radius: 8px; margin-top: 20px; display: none; }
-        #mapStatus { text-align: center; margin-top: 10px; font-weight: bold; color: #2980b9; display: none; }
+        .btn-sm { background: #2ecc71; padding: 6px 12px; font-size: 0.9em; }
+        .btn-sm:hover { background: #27ae60; }
+        
+        #mapStatus { text-align: center; margin-top: 15px; font-weight: bold; color: #2980b9; display: none; }
+        #hospitalListContainer { display: none; margin-top: 20px; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #ecf0f1; }
+        .hospital-item:last-child { border-bottom: none; }
+        .hospital-info h4 { margin: 0 0 5px 0; color: #2c3e50; }
+        .hospital-info p { margin: 0; font-size: 0.85em; color: #7f8c8d; }
+
+        #map { height: 400px; width: 100%; border-radius: 8px; margin-top: 20px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
         .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
         .login-box { background: white; padding: 40px; border-radius: 12px; width: 300px; text-align: center; }
         .login-box input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
@@ -80,8 +90,14 @@
             <button class="btn" onclick="findNearbyHospitals()">📍 Find Nearby Hospitals</button>
         </div>
 
-        <!-- Map Status & Container -->
+        <!-- Map Status, Hospital List & Map Container -->
         <div id="mapStatus">Searching for nearby hospitals...</div>
+        
+        <div id="hospitalListContainer">
+            <h3 style="margin-top:0; color:#2c3e50;">Nearby Hospitals (Within 5km)</h3>
+            <div id="hospitalList"></div>
+        </div>
+
         <div id="map"></div>
 
         <!-- Historical Data Chart -->
@@ -115,10 +131,13 @@
 
         let chartInstance = null;
         let map = null;
+        let userLat = null;
+        let userLon = null;
         let alertCountToday = 0;
-        
-        // Cache variables to prevent repeated re-fetching/re-triggering of hospital search
         let hospitalsLoaded = false;
+        let cachedHospitals = [];
+        let userMarker = null;
+        let hospitalMarkers = [];
 
         window.login = async () => {
             const email = document.getElementById('email').value;
@@ -246,17 +265,28 @@
             });
         }
 
-        // --- HOSPITAL FINDER WITH CACHING (Prevents re-fetching on multiple clicks) ---
+        // Haversine distance calculator in km
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return (R * c).toFixed(2);
+        }
+
+        // --- HOSPITAL LIST & MAP ROUTINE ---
         window.findNearbyHospitals = () => {
-            const mapDiv = document.getElementById('map');
             const mapStatus = document.getElementById('mapStatus');
+            const listContainer = document.getElementById('hospitalListContainer');
             
-            mapDiv.style.display = 'block';
             mapStatus.style.display = 'block';
 
-            // If hospitals are already loaded, just show the map without refetching from API
             if (hospitalsLoaded) {
-                mapStatus.textContent = "Hospitals already loaded on map.";
+                mapStatus.textContent = "Hospitals list already loaded.";
+                listContainer.style.display = 'block';
                 return;
             }
 
@@ -269,28 +299,17 @@
             }
 
             navigator.geolocation.getCurrentPosition(async (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
+                userLat = position.coords.latitude;
+                userLon = position.coords.longitude;
 
                 mapStatus.textContent = "Searching for hospitals within 5km...";
-
-                if (!map) {
-                    map = L.map('map').setView([lat, lon], 14);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '© OpenStreetMap contributors'
-                    }).addTo(map);
-                } else {
-                    map.setView([lat, lon], 14);
-                }
-
-                L.marker([lat, lon]).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
 
                 const query = `
                     [out:json][timeout:25];
                     (
-                      node["amenity"="hospital"](around:5000,${lat},${lon});
-                      way["amenity"="hospital"](around:5000,${lat},${lon});
-                      relation["amenity"="hospital"](around:5000,${lat},${lon});
+                      node["amenity"="hospital"](around:5000,${userLat},${userLon});
+                      way["amenity"="hospital"](around:5000,${userLat},${userLon});
+                      relation["amenity"="hospital"](around:5000,${userLat},${userLon});
                     );
                     out center;
                 `;
@@ -309,17 +328,17 @@
                     }
 
                     mapStatus.textContent = `Found ${result.elements.length} hospitals nearby!`;
-
-                    result.elements.instances = result.elements.forEach(el => {
+                    
+                    // Process and sort hospitals by distance
+                    cachedHospitals = result.elements.map(el => {
                         const hLat = el.lat || el.center.lat;
                         const hLon = el.lon || el.center.lon;
-                        const name = el.tags.name || "Hospital/Clinic";
+                        const name = el.tags.name || "General Hospital / Clinic";
+                        const dist = calculateDistance(userLat, userLon, hLat, hLon);
+                        return { name, lat: hLat, lon: hLon, distance: parseFloat(dist) };
+                    }).sort((a, b) => a.distance - b.distance);
 
-                        L.marker([hLat, hLon]).addTo(map)
-                            .bindPopup(`<b>${name}</b><br>Hospital`);
-                    });
-
-                    // Mark as loaded so subsequent button clicks won't trigger re-fetching
+                    renderHospitalList();
                     hospitalsLoaded = true;
 
                 } catch (error) {
@@ -332,6 +351,56 @@
                 mapStatus.textContent = `Error: ${error.message}. Please check your browser's location permissions.`;
                 mapStatus.style.color = "red";
             });
+        };
+
+        function renderHospitalList() {
+            const listEl = document.getElementById('hospitalList');
+            listEl.innerHTML = "";
+
+            cachedHospitals.forEach((h, index) => {
+                listEl.innerHTML += `
+                    <div class="hospital-item">
+                        <div class="hospital-info">
+                            <h4>${index + 1}. ${h.name}</h4>
+                            <p>Distance: <b>${h.distance} km</b> away</p>
+                        </div>
+                        <button class="btn btn-sm" onclick="viewMapFor(${h.lat}, ${h.lon}, '${h.name.replace(/'/g, "\\'")}')">📍 View Map</button>
+                    </div>
+                `;
+            });
+
+            document.getElementById('hospitalListContainer').style.display = 'block';
+        }
+
+        // Triggered when clicking "View Map" on a specific hospital
+        window.viewMapFor = (lat, lon, name) => {
+            const mapDiv = document.getElementById('map');
+            mapDiv.style.display = 'block';
+            mapDiv.scrollIntoView({ behavior: 'smooth' });
+
+            if (!map) {
+                map = L.map('map').setView([lat, lon], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+            } else {
+                map.setView([lat, lon], 15);
+            }
+
+            // Clear old user/hospital markers if any
+            if (userMarker) map.removeLayer(userMarker);
+            hospitalMarkers.forEach(m => map.removeLayer(m));
+            hospitalMarkers = [];
+
+            // Add user location pin
+            userMarker = L.marker([userLat, userLon]).addTo(map).bindPopup("<b>Your Location</b>");
+
+            // Add selected hospital pin and open popup
+            const marker = L.marker([lat, lon]).addTo(map)
+                .bindPopup(`<b>${name}</b><br>Hospital`)
+                .openPopup();
+            
+            hospitalMarkers.push(marker);
         };
     </script>
 </body>
