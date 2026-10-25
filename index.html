@@ -125,7 +125,7 @@
 
     <div class="toolbar">
       <button class="btn btn-green" id="findHospitalsButton" type="button">📍 Find Hospitals / Clinics Near Me</button>
-      <a class="btn btn-light" href="https://www.google.com/maps/search/hospitals+near+me/" target="_blank" rel="noopener noreferrer">Open Google Maps Search</a>
+      <a class="btn btn-light" id="googleMapsSearch" href="https://www.google.com/maps/search/hospitals+near+me/" target="_blank" rel="noopener noreferrer">Open Google Maps Search</a>
     </div>
 
     <section id="alertBox" class="alert-box" role="alert" aria-live="polite">
@@ -172,13 +172,16 @@
 
     const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec";
 
-    // Public community endpoints can occasionally be overloaded. The code tries them in order.
+    // Public community endpoints can be overloaded. Keep each attempt short and
+    // fall back to Photon if Overpass is busy or unreachable.
     const OVERPASS_ENDPOINTS = [
-      "https://overpass.private.coffee/api/interpreter",
       "https://overpass-api.de/api/interpreter",
-      "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+      "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+      "https://overpass.private.coffee/api/interpreter"
     ];
+    const OVERPASS_CLIENT_TIMEOUT_MS = 12000;
     const SEARCH_RADIUS_METERS = 10000;
+    let facilitySearchSource = "OpenStreetMap";
 
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
@@ -395,24 +398,26 @@
       navigator.geolocation.getCurrentPosition(async (position) => {
         userLat = position.coords.latitude;
         userLon = position.coords.longitude;
-        statusEl.textContent = "Location received. Searching OpenStreetMap for facilities within 10 km…";
+        byId("googleMapsSearch").href = `https://www.google.com/maps/search/hospitals/@${userLat},${userLon},13z`;
+        statusEl.textContent = "Location received. Searching for hospitals and clinics within 10 km…";
         try {
           const facilities = await queryNearbyFacilities(userLat, userLon);
           cachedHospitals = facilities;
           renderHospitalList();
           if (facilities.length === 0) {
-            statusEl.textContent = "No mapped hospitals or clinics were found within 10 km. You can still use the Google Maps search link above.";
+            statusEl.textContent = "No nearby facilities were returned by the available map services. Open Google Maps Search above for another live search.";
             byId("hospitalListContainer").style.display = "block";
-            byId("hospitalList").replaceChildren(makeEmptyState("No facilities returned by OpenStreetMap for this area."));
+            byId("hospitalList").replaceChildren(makeEmptyState("No facilities were returned. This does not mean no hospitals exist nearby; map data and search services can be incomplete or temporarily unavailable."));
           } else {
-            statusEl.textContent = `Found ${facilities.length} mapped medical facilities within 10 km. Select “View map” or “Show all on map”.`;
+            const sourceNote = facilitySearchSource === "Photon fallback" ? " (backup search; results may be incomplete)" : "";
+            statusEl.textContent = `Found ${facilities.length} mapped medical facilities within 10 km${sourceNote}. Select “View map” or “Show all on map”.`;
             byId("hospitalListContainer").style.display = "block";
           }
         } catch (error) {
           console.error("Nearby facility lookup failed:", error);
           statusEl.style.background = "#fff0f0";
           statusEl.style.color = "#a92323";
-          statusEl.textContent = `Could not retrieve the OpenStreetMap facility list. ${error.message} Use the Google Maps search link above, or retry shortly.`;
+          statusEl.textContent = `The map providers did not return a facility list. ${error.message} Use the Google Maps search link above, which is centered on your location, or retry shortly.`;
           byId("hospitalListContainer").style.display = "block";
           byId("hospitalList").replaceChildren(makeEmptyState("The public map data service may be busy or blocked by the network. This does not mean there are no hospitals nearby."));
         } finally {
@@ -438,41 +443,135 @@
       statusEl.textContent = message + " Location access generally requires HTTPS (or localhost). You can also use the Google Maps search link above.";
     }
 
+    async function fetchJsonWithTimeout(url, options = {}, timeoutMs = OVERPASS_CLIENT_TIMEOUT_MS) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal, cache: "no-store" });
+        if (!response.ok) {
+          let detail = "";
+          try { detail = (await response.text()).slice(0, 180); } catch (_) {}
+          throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+        }
+        return await response.json();
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
     async function queryNearbyFacilities(lat, lon) {
+      // Use one compact query rather than a broad pair of large regex queries.
+      // Only ask for tags and element centers, not full geometry.
       const query = `
-        [out:json][timeout:25];
+        [out:json][timeout:10][maxsize:67108864];
         (
-          nwr(around:${SEARCH_RADIUS_METERS},${lat},${lon})["amenity"~"^(hospital|clinic|doctors|urgent_care|health_post)$"];
-          nwr(around:${SEARCH_RADIUS_METERS},${lat},${lon})["healthcare"~"^(hospital|clinic|doctor|centre|center|urgent_care|health_post)$"];
+          nwr(around:${SEARCH_RADIUS_METERS},${lat},${lon})["amenity"~"^(hospital|clinic|doctors|urgent_care)$"];
+          nwr(around:${SEARCH_RADIUS_METERS},${lat},${lon})["healthcare"~"^(hospital|clinic|doctor|urgent_care)$"];
         );
         out center;
       `;
       const failures = [];
+
       for (const endpoint of OVERPASS_ENDPOINTS) {
         try {
-          const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 30000);
-          let response;
-          try {
-            response = await fetch(endpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-              body: new URLSearchParams({ data: query }),
-              signal: controller.signal
-            });
-          } finally {
-            window.clearTimeout(timeoutId);
+          const result = await fetchJsonWithTimeout(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+            body: new URLSearchParams({ data: query })
+          }, OVERPASS_CLIENT_TIMEOUT_MS);
+
+          if (result?.remark) throw new Error(`Overpass query warning: ${String(result.remark).slice(0, 180)}`);
+          if (!Array.isArray(result?.elements)) throw new Error("Unexpected response from the map server.");
+
+          const facilities = normalizeFacilities(result.elements, lat, lon);
+          if (facilities.length > 0) {
+            facilitySearchSource = "Overpass";
+            return facilities;
           }
-          if (!response.ok) throw new Error(`HTTP ${response.status} from ${new URL(endpoint).hostname}`);
-          const result = await response.json();
-          if (!Array.isArray(result.elements)) throw new Error("The map server returned an unexpected response.");
-          return normalizeFacilities(result.elements, lat, lon);
+          failures.push(`${new URL(endpoint).hostname}: query succeeded but returned no matching facilities`);
         } catch (error) {
-          failures.push(`${new URL(endpoint).hostname}: ${error.name === "AbortError" ? "request timed out" : error.message}`);
+          const reason = error?.name === "AbortError" ? `timed out after ${Math.round(OVERPASS_CLIENT_TIMEOUT_MS / 1000)} seconds` : (error?.message || "request failed");
+          failures.push(`${new URL(endpoint).hostname}: ${reason}`);
           console.warn("Overpass endpoint failed:", endpoint, error);
         }
       }
-      throw new Error(failures.join("; ") || "All map data servers failed.");
+
+      // Fallback: Photon can return nearby OSM POIs without requiring an Overpass query.
+      // It is a backup search, not a guaranteed complete directory.
+      try {
+        const fallbackFacilities = await queryPhotonFacilities(lat, lon);
+        if (fallbackFacilities.length > 0) {
+          facilitySearchSource = "Photon fallback";
+          console.info("Using Photon fallback because Overpass was unavailable:", failures);
+          return fallbackFacilities;
+        }
+        failures.push("Photon fallback: no nearby facilities returned");
+      } catch (error) {
+        failures.push(`Photon fallback: ${error?.name === "AbortError" ? "request timed out" : (error?.message || "request failed")}`);
+        console.warn("Photon fallback failed:", error);
+      }
+
+      throw new Error(failures.join("; ") || "All public map services failed.");
+    }
+
+    async function queryPhotonFacilities(lat, lon) {
+      const categories = ["amenity:hospital", "amenity:clinic", "amenity:doctors"];
+      const requests = categories.map(async (tag) => {
+        const params = new URLSearchParams({
+          lat: String(lat),
+          lon: String(lon),
+          radius: "10",
+          limit: "30",
+          osm_tag: tag
+        });
+        const url = `https://photon.komoot.io/reverse?${params.toString()}`;
+        return fetchJsonWithTimeout(url, {}, 9000);
+      });
+      const responses = await Promise.allSettled(requests);
+      const features = [];
+      const errors = [];
+      for (const response of responses) {
+        if (response.status === "fulfilled") {
+          if (Array.isArray(response.value?.features)) features.push(...response.value.features);
+        } else {
+          errors.push(response.reason?.message || "one Photon category request failed");
+        }
+      }
+      if (!features.length && errors.length === categories.length) {
+        throw new Error(`Backup POI search failed: ${errors.slice(0, 2).join("; ")}`);
+      }
+
+      const seen = new Set();
+      const facilities = [];
+      for (const feature of features) {
+        const coordinates = feature?.geometry?.coordinates;
+        if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
+        const lonValue = Number(coordinates[0]);
+        const latValue = Number(coordinates[1]);
+        if (!Number.isFinite(latValue) || !Number.isFinite(lonValue)) continue;
+        const distance = haversineKm(lat, lon, latValue, lonValue);
+        if (distance > 10) continue;
+
+        const properties = feature.properties || {};
+        const id = properties.osm_type && properties.osm_id
+          ? `${properties.osm_type}/${properties.osm_id}`
+          : `${latValue.toFixed(5)},${lonValue.toFixed(5)},${String(properties.name || "").toLowerCase()}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+
+        const type = properties.osm_value || properties.osm_key || "medical facility";
+        facilities.push({
+          id: `photon/${id}`,
+          name: properties.name || properties.street || "Unnamed medical facility",
+          type: prettyType(type),
+          lat: latValue,
+          lon: lonValue,
+          distance,
+          tags: properties
+        });
+      }
+      facilities.sort((a, b) => a.distance - b.distance);
+      return facilities;
     }
 
     function normalizeFacilities(elements, originLat, originLon) {
