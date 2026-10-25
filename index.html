@@ -161,7 +161,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, inMemoryPersistence, signOut} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
@@ -190,7 +190,11 @@
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
     const auth = getAuth(app);
+    // Do not persist the login across page reloads.
+    await setPersistence(auth, inMemoryPersistence);
 
+    // Clear any previously remembered login.
+    await signOut(auth);
     let chartInstance = null;
     let mapInstance = null;
     let userLat = null;
