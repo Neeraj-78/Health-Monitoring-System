@@ -94,7 +94,7 @@
         <div id="mapStatus">Searching for nearby hospitals...</div>
         
         <div id="hospitalListContainer">
-            <h3 style="margin-top:0; color:#2c3e50;">Nearby Hospitals (Within 5km)</h3>
+            <h3 style="margin-top:0; color:#2c3e50;">Nearby Medical Facilities (Within 10km)</h3>
             <div id="hospitalList"></div>
         </div>
 
@@ -277,7 +277,7 @@
             return (R * c).toFixed(2);
         }
 
-        // --- HOSPITAL LIST & MAP ROUTINE ---
+        // --- BROADER HOSPITAL & CLINIC SEARCH ROUTINE ---
         window.findNearbyHospitals = () => {
             const mapStatus = document.getElementById('mapStatus');
             const listContainer = document.getElementById('hospitalListContainer');
@@ -302,14 +302,18 @@
                 userLat = position.coords.latitude;
                 userLon = position.coords.longitude;
 
-                mapStatus.textContent = "Searching for hospitals within 5km...";
+                mapStatus.textContent = "Searching for nearby medical facilities within 10km...";
 
+                // Expanded query to search hospitals, clinics, and healthcare facilities within 10km
                 const query = `
                     [out:json][timeout:25];
                     (
-                      node["amenity"="hospital"](around:5000,${userLat},${userLon});
-                      way["amenity"="hospital"](around:5000,${userLat},${userLon});
-                      relation["amenity"="hospital"](around:5000,${userLat},${userLon});
+                      node["amenity"="hospital"](around:10000,${userLat},${userLon});
+                      way["amenity"="hospital"](around:10000,${userLat},${userLon});
+                      relation["amenity"="hospital"](around:10000,${userLat},${userLon});
+                      node["amenity"="clinic"](around:10000,${userLat},${userLon});
+                      way["amenity"="clinic"](around:10000,${userLat},${userLon});
+                      node["healthcare"="hospital"](around:10000,${userLat},${userLon});
                     );
                     out center;
                 `;
@@ -322,21 +326,30 @@
                     
                     const result = await response.json();
 
-                    if (result.elements.length === 0) {
-                        mapStatus.textContent = "No hospitals found within 5km.";
+                    if (!result.elements || result.elements.length === 0) {
+                        mapStatus.textContent = "No hospitals or clinics found within 10km. Try checking browser location permissions.";
+                        mapStatus.style.color = "orange";
                         return;
                     }
 
-                    mapStatus.textContent = `Found ${result.elements.length} hospitals nearby!`;
+                    mapStatus.textContent = `Found ${result.elements.length} medical facilities nearby!`;
                     
-                    // Process and sort hospitals by distance
+                    // Process and sort results by distance
                     cachedHospitals = result.elements.map(el => {
-                        const hLat = el.lat || el.center.lat;
-                        const hLon = el.lon || el.center.lon;
-                        const name = el.tags.name || "General Hospital / Clinic";
+                        const hLat = el.lat || (el.center ? el.center.lat : null);
+                        const hLon = el.lon || (el.center ? el.center.lon : null);
+                        const name = (el.tags && el.tags.name) ? el.tags.name : "Medical Center / Clinic";
+                        
+                        if (!hLat || !hLon) return null;
+                        
                         const dist = calculateDistance(userLat, userLon, hLat, hLon);
                         return { name, lat: hLat, lon: hLon, distance: parseFloat(dist) };
-                    }).sort((a, b) => a.distance - b.distance);
+                    }).filter(item => item !== null).sort((a, b) => a.distance - b.distance);
+
+                    if (cachedHospitals.length === 0) {
+                        mapStatus.textContent = "Found elements, but coordinates were invalid.";
+                        return;
+                    }
 
                     renderHospitalList();
                     hospitalsLoaded = true;
@@ -397,7 +410,7 @@
 
             // Add selected hospital pin and open popup
             const marker = L.marker([lat, lon]).addTo(map)
-                .bindPopup(`<b>${name}</b><br>Hospital`)
+                .bindPopup(`<b>${name}</b><br>Medical Facility`)
                 .openPopup();
             
             hospitalMarkers.push(marker);
