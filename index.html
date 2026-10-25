@@ -183,7 +183,7 @@
       "https://overpass.private.coffee/api/interpreter"
     ];
     const OVERPASS_CLIENT_TIMEOUT_MS = 12000;
-    const SEARCH_RADIUS_METERS = 10000;
+    const SEARCH_RADIUS_METERS = 2500;
     const MAX_DISPLAY_FACILITIES = 6; // Show only the six closest results.
     let facilitySearchSource = "OpenStreetMap";
 
@@ -526,7 +526,7 @@
         const params = new URLSearchParams({
           lat: String(lat),
           lon: String(lon),
-          radius: "10",
+          radius: "2.5",
           limit: "30",
           osm_tag: tag
         });
@@ -556,7 +556,7 @@
         const latValue = Number(coordinates[1]);
         if (!Number.isFinite(latValue) || !Number.isFinite(lonValue)) continue;
         const distance = haversineKm(lat, lon, latValue, lonValue);
-        if (distance > 10) continue;
+        if (distance > 2.5) continue;
 
         const properties = feature.properties || {};
         const id = properties.osm_type && properties.osm_id
@@ -590,7 +590,7 @@
         const latitude = Number(lat);
         const longitude = Number(lon);
         const distance = haversineKm(originLat, originLon, latitude, longitude);
-        if (distance > 10.05) continue; // OSM way/relation centers can be slightly offset from their actual footprint.
+        if (distance > 2.6) continue; // OSM way/relation centers can be slightly offset from their actual footprint.
         const tags = element.tags || {};
         const name = tags["name:en"] || tags.name || tags.official_name || tags.brand || "Unnamed medical facility";
         const kind = tags.amenity || tags.healthcare || "medical facility";
