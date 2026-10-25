@@ -116,6 +116,9 @@
         let chartInstance = null;
         let map = null;
         let alertCountToday = 0;
+        
+        // Cache variables to prevent repeated re-fetching/re-triggering of hospital search
+        let hospitalsLoaded = false;
 
         window.login = async () => {
             const email = document.getElementById('email').value;
@@ -178,7 +181,6 @@
                 alertCountToday = 0;
                 const today = new Date().toDateString();
                 data.forEach(row => {
-                    // Check column E (Alert Message)
                     if (row['Alert Message'] && row['Alert Message'] !== 'Normal') {
                         const rowDate = new Date(row['Timestamp']).toDateString();
                         if (rowDate === today) {
@@ -244,13 +246,20 @@
             });
         }
 
-        // --- UPDATED HOSPITAL FINDER WITH ERROR HANDLING ---
+        // --- HOSPITAL FINDER WITH CACHING (Prevents re-fetching on multiple clicks) ---
         window.findNearbyHospitals = () => {
             const mapDiv = document.getElementById('map');
             const mapStatus = document.getElementById('mapStatus');
             
             mapDiv.style.display = 'block';
             mapStatus.style.display = 'block';
+
+            // If hospitals are already loaded, just show the map without refetching from API
+            if (hospitalsLoaded) {
+                mapStatus.textContent = "Hospitals already loaded on map.";
+                return;
+            }
+
             mapStatus.textContent = "Getting your location... Please allow location access if prompted.";
 
             if (!navigator.geolocation) {
@@ -276,7 +285,6 @@
 
                 L.marker([lat, lon]).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
 
-                // Using a faster Overpass API mirror
                 const query = `
                     [out:json][timeout:25];
                     (
@@ -302,7 +310,7 @@
 
                     mapStatus.textContent = `Found ${result.elements.length} hospitals nearby!`;
 
-                    result.elements.forEach(el => {
+                    result.elements.instances = result.elements.forEach(el => {
                         const hLat = el.lat || el.center.lat;
                         const hLon = el.lon || el.center.lon;
                         const name = el.tags.name || "Hospital/Clinic";
@@ -310,6 +318,9 @@
                         L.marker([hLat, hLon]).addTo(map)
                             .bindPopup(`<b>${name}</b><br>Hospital`);
                     });
+
+                    // Mark as loaded so subsequent button clicks won't trigger re-fetching
+                    hospitalsLoaded = true;
 
                 } catch (error) {
                     console.error("Error fetching hospitals:", error);
@@ -322,7 +333,6 @@
                 mapStatus.style.color = "red";
             });
         };
-
     </script>
 </body>
 </html>
