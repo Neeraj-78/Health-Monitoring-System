@@ -52,7 +52,7 @@
     .status-badge::before { content: ''; display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 
     /* Views */
-    .view { display: none; animation: fadeIn 0.3s ease; }
+    .view { display: none; animation: fadeIn 0.4s ease; }
     .view.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -64,7 +64,7 @@
     .unit { font-size: 1rem; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
     
     /* Alerts & Suggestions */
-    .suggestion-card { background: #f0fdf4; border-left: 5px solid var(--green); border-radius: 12px; padding: 20px; margin-bottom: 25px; }
+    .suggestion-card { background: #f0fdf4; border-left: 5px solid var(--green); border-radius: 12px; padding: 20px; margin-bottom: 25px; transition: 0.3s; }
     .suggestion-card.alert-mode { background: #fef2f2; border-left-color: var(--red); }
     .suggestion-card h3 { font-size: 1.1rem; color: var(--text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
     #suggestionsText { font-size: 1rem; line-height: 1.6; color: var(--text-main); }
@@ -87,8 +87,11 @@
     .btn-outline:hover { background: #f1f5f9; }
 
     /* Map Snippet Container */
-    .map-frame-container { width: 100%; height: 520px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; }
+    .map-frame-container { width: 100%; height: 550px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; background: #e2e8f0; }
     .map-frame-container iframe { width: 100%; height: 100%; border: none; }
+    .search-bar { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 600px; }
+    .search-input { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit; font-size: 1rem; min-width: 200px; }
+    .search-input:focus { border-color: var(--primary); }
 
     /* Login */
     .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
@@ -96,6 +99,7 @@
     .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
     .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 25px; }
     .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; }
+    .login-box input:focus { border-color: var(--primary); }
     .login-box button { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
     .error-text { color: var(--red); font-size: 0.9rem; margin-top: 15px; text-align: center; }
     
@@ -108,6 +112,7 @@
       .nav-links { flex-direction: row; padding: 0; width: 100%; }
       .nav-btn { padding: 10px 15px; white-space: nowrap; }
       .main-content { margin-left: 0; max-width: 100%; padding: 15px; }
+      .map-frame-container { height: 400px; }
     }
   </style>
 </head>
@@ -173,7 +178,7 @@
     <div id="view-history" class="view">
       <div class="card" style="margin-bottom: 25px;">
         <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Today's Vitals Trend (Last 30 Readings)</h2>
-        <div class="chart-container">
+        <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
           <canvas id="historyChart"></canvas>
         </div>
       </div>
@@ -227,20 +232,26 @@
       </div>
     </div>
 
-    <!-- VIEW 4: NEARBY HOSPITALS (GOOGLE MAPS EMBEDDED) -->
+    <!-- VIEW 4: NEARBY HOSPITALS -->
     <div id="view-hospitals" class="view">
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals (Auto-Detected)</h2>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 450px;">
-            <input type="text" id="manualLocationInput" placeholder="Or type city/area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
-            <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals Search</h2>
+          
+          <div class="search-bar">
+            <input type="text" id="manualLocationInput" class="search-input" placeholder="Enter city or area (e.g. Mumbai)">
+            <button class="btn btn-outline" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+            <button class="btn btn-primary" id="gpsSearchButton" type="button"><i class="fa-solid fa-location-crosshairs"></i> Use My Location</button>
           </div>
         </div>
-        <div id="gpsStatus" style="font-size: 0.85rem; color: var(--primary); font-weight: 500; margin-bottom: 10px; display: none;"></div>
+        
+        <!-- Auto Detect Status Message -->
+        <p id="mapStatus" style="color: var(--primary); font-size: 0.95rem; margin-bottom: 15px; font-weight: 500;">
+          <i class="fa-solid fa-circle-info"></i> Type your area or use your current GPS location below.
+        </p>
         
         <div class="map-frame-container">
-          <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals%20in%20Bangalore&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
+          <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
         </div>
       </div>
     </div>
@@ -273,6 +284,7 @@
     
     let chartInstance = null;
     let dashboardStarted = false;
+    let hasAutoSearched = false; // Prevents spamming GPS every time tab is clicked
 
     const byId = (id) => document.getElementById(id);
 
@@ -286,11 +298,14 @@
         byId(targetId).classList.add('active');
         e.currentTarget.classList.add('active');
 
-        if (targetId === 'view-hospitals') {
-          autoFetchGpsAndLoadMap(); // Automatically detect location when tab opens!
-        }
         if (targetId === 'view-history' && chartInstance) {
           setTimeout(() => chartInstance.resize(), 100);
+        }
+
+        // AUTO GPS TRIGGER: If opening hospitals tab for the first time
+        if (targetId === 'view-hospitals' && !hasAutoSearched) {
+          searchByGPS();
+          hasAutoSearched = true;
         }
       });
     });
@@ -377,12 +392,14 @@
         const validRows = rows.filter(r => r && r.Timestamp);
         if (validRows.length === 0) return;
 
+        // Filter for today's date only
         const todayString = new Date().toDateString();
         const todayRows = validRows.filter(r => {
           const rowDate = new Date(r.Timestamp);
           return !isNaN(rowDate.getTime()) && rowDate.toDateString() === todayString;
         });
 
+        // Get last 30 of today's readings for the chart
         const chartRows = todayRows.slice(-30); 
 
         renderChart(chartRows);
@@ -397,8 +414,18 @@
     function renderChart(rows) {
       if (typeof Chart === "undefined") return;
       
+      const ctx = byId("historyChart").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+      
       if (rows.length === 0) {
-        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: [], datasets: [] },
+          options: { 
+            responsive: true, maintainAspectRatio: false,
+            plugins: { title: { display: true, text: 'No readings recorded today yet.' } }
+          }
+        });
         return; 
       }
 
@@ -408,9 +435,6 @@
         spo2: Number(r['SpO2 (%)'] || r.spo2)
       })).filter(d => !isNaN(d.x.getTime()));
 
-      const ctx = byId("historyChart").getContext("2d");
-      if (chartInstance) chartInstance.destroy();
-      
       chartInstance = new Chart(ctx, {
         type: "line",
         data: {
@@ -424,11 +448,7 @@
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           scales: {
-            x: {
-              type: 'time',
-              time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
-              grid: { display: false }
-            },
+            x: { type: 'time', time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } }, grid: { display: false } },
             y: { beginAtZero: false }
           }
         }
@@ -471,7 +491,6 @@
 
       alerts.forEach(r => {
         const msg = r['Alert Message'] || r.alertMsg;
-        
         let param = "Unknown";
         const hr = Number(r['Heart Rate (BPM)'] || r.hr);
         const spo2 = Number(r['SpO2 (%)'] || r.spo2);
@@ -492,55 +511,57 @@
       });
     }
 
-    // --- Automatic GPS & Search Logic for Google Maps Embed ---
-    function updateMapEmbed(searchQuery) {
-      const searchUrl = `https://maps.google.com/maps?q=${encodeURIComponent(searchQuery)}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
+    // --- Map Search Logic ---
+    function searchByLocationText() {
+      const location = byId("manualLocationInput").value.trim() || "Hospitals Nearby";
+      byId("mapStatus").innerHTML = `Showing hospitals in <b>${location}</b>`;
+      const searchUrl = `https://maps.google.com/maps?q=hospitals%20in%20${encodeURIComponent(location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
       byId("googleMapIframe").src = searchUrl;
     }
 
-    function performTextSearch() {
-      const locationText = byId("manualLocationInput").value.trim() || "Bangalore";
-      const status = byId("gpsStatus");
-      status.style.display = "block";
-      status.textContent = `Showing hospitals near "${locationText}"`;
-      updateMapEmbed(`hospitals in ${locationText}`);
-    }
-
-    function autoFetchGpsAndLoadMap() {
-      const status = byId("gpsStatus");
-      status.style.display = "block";
-      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Automatically detecting your GPS location...';
-
+    function searchByGPS() {
+      const btn = byId("gpsSearchButton");
+      const status = byId("mapStatus");
+      
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Locating...';
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Detecting your location... Please allow access.';
+      
       if (!navigator.geolocation) {
-        status.textContent = "Geolocation not supported. Showing Bangalore.";
-        updateMapEmbed("hospitals in Bangalore");
+        status.innerHTML = 'Geolocation is not supported by your browser.';
+        btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          status.innerHTML = `Location detected (${lat.toFixed(4)}, ${lon.toFixed(4)}). Loading nearby hospitals...`;
-          setTimeout(() => { status.style.display = "none"; }, 3000);
-          updateMapEmbed(`hospitals near ${lat},${lon}`);
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          
+          status.innerHTML = '📍 Showing hospitals near your current location.';
+          const searchUrl = `https://maps.google.com/maps?q=hospitals&ll=${lat},${lon}&z=14&output=embed`;
+          byId("googleMapIframe").src = searchUrl;
+          btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
         },
-        (err) => {
-          status.textContent = "Location access denied/unavailable. Showing default area (Bangalore).";
-          updateMapEmbed("hospitals in Bangalore");
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        (error) => {
+          status.innerHTML = '❌ Location denied. Please type a city name manually.';
+          btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
+        }
       );
     }
 
-    byId("searchManualButton").addEventListener("click", performTextSearch);
+    // --- Event Listeners for Map ---
+    byId("searchManualButton").addEventListener("click", searchByLocationText);
     byId("manualLocationInput").addEventListener("keypress", (e) => {
-      if (e.key === "Enter") performTextSearch();
+      if (e.key === "Enter") searchByLocationText();
     });
+    byId("gpsSearchButton").addEventListener("click", searchByGPS);
 
+    // --- Auto Search from Alert Page ---
     window.autoSearchHospitals = () => {
       document.querySelector('[data-target="view-hospitals"]').click();
-      autoFetchGpsAndLoadMap();
+      setTimeout(() => {
+        searchByGPS();
+      }, 300);
     };
   </script>
 </body>
