@@ -9,9 +9,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <style>
     :root {
@@ -256,18 +258,12 @@
 
     /* ---------- Map & hospitals ---------- */
     .gps-status { font-size: 0.92rem; color: var(--accent); font-weight: 500; margin-bottom: 10px; display: none; }
-    #mappls-map {
+    #osm-map {
       width: 100%;
       height: 420px;
       border-radius: var(--radius);
       border: 1px solid var(--line);
-      background: #e8edf4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--ink-muted);
-      font-size: 0.95rem;
-      overflow: hidden;
+      z-index: 0;
     }
     .hospital-item {
       display: flex;
@@ -278,9 +274,11 @@
       border-bottom: 1px solid var(--line);
     }
     .hospital-item:last-child { border-bottom: none; }
+    .hospital-info { cursor: pointer; min-width: 0; }
+    .hospital-info:hover h4 { color: var(--accent); }
     .hospital-info h4 { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
     .hospital-info p { font-size: 0.9rem; color: var(--ink-muted); }
-    .list-source { font-size: 0.85rem; color: var(--ink-muted); margin-top: 12px; }
+    .hospital-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .muted-center { color: var(--ink-muted); text-align: center; padding: 20px; }
 
     /* ---------- Login ---------- */
@@ -340,7 +338,8 @@
       .sidebar-footer { display: none; }
       .main-content { margin-left: 0; max-width: 100%; padding: 18px; }
       .value { font-size: 2.1rem; }
-      #mappls-map { height: 320px; }
+      #osm-map { height: 320px; }
+      .hospital-item { flex-direction: column; align-items: flex-start; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -478,16 +477,16 @@
     <section id="view-hospitals" class="view">
       <div class="card">
         <div class="toolbar">
-          <h2 style="margin-bottom: 0;">Medical facilities near you</h2>
+          <h2 style="margin-bottom: 0;">Hospitals near you</h2>
           <form class="search-row" id="searchForm" role="search">
             <input type="text" id="manualLocationInput" placeholder="Search an area, e.g. Indiranagar" aria-label="Search an area">
             <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search</button>
           </form>
         </div>
         <div id="gpsStatus" class="gps-status" role="status"></div>
-        <div id="mappls-map"><span>Map loads here when a Mappls key is set.</span></div>
+        <div id="osm-map"></div>
         <div id="hospitalListContainer" style="margin-top: 16px;">
-          <p class="muted-center">Choose a location to see nearby hospitals.</p>
+          <p class="muted-center">Detecting your location...</p>
         </div>
       </div>
     </section>
@@ -499,7 +498,7 @@
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     /* =========================================================
-       CONFIG — the only place you need to edit
+       CONFIG
        ========================================================= */
     const CONFIG = {
       firebase: {
@@ -513,35 +512,32 @@
       },
       sheetsUrl: "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec",
 
-      // Paste your NEW Mappls key here. Leave the placeholder to skip Mappls;
-      // hospital search then uses OpenStreetMap, which needs no key.
-      mapplsKey: "bdovxvygaghpdtyjenqaeikjchrddfjydirq",
-      // Verify these against your Mappls REST docs if Mappls results don't appear.
-      mapplsNearbyUrl: "https://search.mappls.com/api/places/nearby/json",
-      mapplsGeocodeUrl: "https://apis.mappls.com/advancedmaps/v1/KEY/geocoding",
-      // The Mappls REST nearby search needs server-side auth, so keep this false on a public page.
-      useMapplsNearby: false,
-
       defaultLocation: { lat: 12.9716, lon: 77.5946, name: "Bangalore" },
+      radiusMeters: 5000,
+      maxHospitals: 10,
       refreshMs: 60000,
-      radiusMeters: 5000
+
+      // OpenStreetMap services. Overpass mirrors are tried in order if one is busy.
+      tileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      tileAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      nominatimUrl: "https://nominatim.openstreetmap.org/search",
+      overpassUrls: [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter"
+      ]
     };
 
-    /* ---------- Thresholds (match your device firmware) ---------- */
+    /* Alert thresholds */
     const LIMITS = { hrHigh: 100, spo2Low: 95, tempFever: 37.5, alertHr: 120, alertSpo2: 90, alertTemp: 38.0 };
 
-    /* ---------- Helpers ---------- */
+    /* =========================================================
+       Helpers
+       ========================================================= */
     const app = initializeApp(CONFIG.firebase);
     const db = getDatabase(app);
     const auth = getAuth(app);
 
     const $ = (id) => document.getElementById(id);
-
-    // Escape anything that came from outside the page before it reaches HTML.
-    // Most rendering below uses textContent, so this is a backup.
-    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-    }[c]));
 
     const num = (v) => {
       if (v === null || v === undefined || v === "") return null;
@@ -578,10 +574,11 @@
       b.classList.toggle("offline", !online);
     }
 
-    /* ---------- Navigation ---------- */
+    /* =========================================================
+       Navigation
+       ========================================================= */
     let hospitalsLoadedOnce = false;
     let chartInstance = null;
-    let mapplsMap = null;
 
     function showView(targetId, titleText) {
       document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === targetId));
@@ -589,9 +586,14 @@
       $("pageTitle").textContent = titleText;
 
       if (targetId === "view-history" && chartInstance) setTimeout(() => chartInstance.resize(), 100);
-      if (targetId === "view-hospitals" && !hospitalsLoadedOnce) {
-        hospitalsLoadedOnce = true;
-        locateAndSearch();
+
+      if (targetId === "view-hospitals") {
+        ensureMap();
+        if (osmMap) setTimeout(() => osmMap.invalidateSize(), 100);
+        if (!hospitalsLoadedOnce) {
+          hospitalsLoadedOnce = true;
+          locateAndSearch();
+        }
       }
     }
 
@@ -604,7 +606,9 @@
       locateAndSearch();
     });
 
-    /* ---------- Auth ---------- */
+    /* =========================================================
+       Auth
+       ========================================================= */
     $("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = $("loginButton");
@@ -635,7 +639,9 @@
       }
     });
 
-    /* ---------- Live data & history ---------- */
+    /* =========================================================
+       Live data & history
+       ========================================================= */
     function startDashboard() {
       onValue(
         ref(db, "/readings"),
@@ -683,12 +689,13 @@
     }
 
     function normalize(r) {
+      const rawMsg = r["Alert Message"] ?? r.alertMsg;
       return {
         time: new Date(r.Timestamp),
         hr: num(r["Heart Rate (BPM)"] ?? r.hr),
         spo2: num(r["SpO2 (%)"] ?? r.spo2),
         temp: num(r["Temp (°C)"] ?? r.temp),
-        alert: isNormalMsg(r["Alert Message"] ?? r.alertMsg) ? "Normal" : String(r["Alert Message"] ?? r.alertMsg).trim()
+        alert: isNormalMsg(rawMsg) ? "Normal" : String(rawMsg).trim()
       };
     }
 
@@ -771,7 +778,8 @@
       const tbody = $("historyTableBody");
       tbody.textContent = "";
       if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No readings yet.</td></tr>`;
+        fillRow(tbody, [{ text: "No readings yet.", cls: "empty-row" }]);
+        tbody.lastElementChild.firstElementChild.colSpan = 5;
         return;
       }
       [...data].reverse().forEach((r) => {
@@ -792,7 +800,8 @@
       const alerts = data.filter((r) => r.alert !== "Normal").reverse();
 
       if (alerts.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color: var(--ok); font-weight: 600;">No alerts recorded.</td></tr>`;
+        fillRow(tbody, [{ text: "No alerts recorded.", cls: "ok" }]);
+        tbody.lastElementChild.firstElementChild.colSpan = 3;
         return;
       }
 
@@ -810,60 +819,63 @@
       });
     }
 
-    /* ---------- Mappls: optional map ---------- */
-    const hasMappls = () => Boolean(CONFIG.mapplsKey) && !CONFIG.mapplsKey.startsWith("PASTE_");
+    /* =========================================================
+       OpenStreetMap (Leaflet)
+       ========================================================= */
+    let osmMap = null;
+    let hospitalLayer = null;
+    let searchMarker = null;
+    let hospitalMarkers = [];
 
-    function loadScript(src) {
-      return new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = src;
-        s.onload = resolve;
-        s.onerror = () => reject(new Error(`Failed to load ${src}`));
-        document.head.appendChild(s);
+    function ensureMap() {
+      if (osmMap) return;
+      if (typeof L === "undefined") {
+        $("osm-map").textContent = "Map library failed to load. Check your connection.";
+        return;
+      }
+      osmMap = L.map("osm-map").setView([CONFIG.defaultLocation.lat, CONFIG.defaultLocation.lon], 13);
+      L.tileLayer(CONFIG.tileUrl, { maxZoom: 19, attribution: CONFIG.tileAttribution }).addTo(osmMap);
+      hospitalLayer = L.layerGroup().addTo(osmMap);
+    }
+
+    function popupContent(name, address) {
+      const wrap = document.createElement("div");
+      const b = document.createElement("b");
+      b.textContent = name;
+      wrap.appendChild(b);
+      if (address) {
+        const p = document.createElement("div");
+        p.textContent = address;
+        wrap.appendChild(p);
+      }
+      return wrap;
+    }
+
+    function plotSearchCenter(lat, lon, label) {
+      ensureMap();
+      if (!osmMap) return;
+      osmMap.setView([lat, lon], 14);
+      if (searchMarker) searchMarker.remove();
+      searchMarker = L.circleMarker([lat, lon], {
+        radius: 9, color: "#2f5bd3", fillColor: "#2f5bd3", fillOpacity: 0.9, weight: 3
+      }).addTo(osmMap).bindPopup(popupContent(label, ""));
+    }
+
+    function plotHospitals(list) {
+      if (!hospitalLayer) return;
+      hospitalLayer.clearLayers();
+      hospitalMarkers = list.map((h) => {
+        const marker = L.circleMarker([h.lat, h.lon], {
+          radius: 7, color: "#b91c1c", fillColor: "#ef4444", fillOpacity: 0.9, weight: 2
+        }).bindPopup(popupContent(h.name, h.address));
+        marker.addTo(hospitalLayer);
+        return marker;
       });
     }
 
-    async function ensureMapplsSdk() {
-      if (!hasMappls()) return false;
-      if (window.mappls) return true;
-      try {
-        await loadScript(`https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${encodeURIComponent(CONFIG.mapplsKey)}`);
-        return Boolean(window.mappls);
-      } catch (err) {
-        console.warn("Mappls SDK unavailable:", err);
-        return false;
-      }
-    }
-
-    async function showMap(lat, lon, label) {
-      const box = $("mappls-map");
-      const ready = await ensureMapplsSdk();
-      if (!ready) {
-        box.textContent = hasMappls()
-          ? "Map could not load. Check that your Mappls key is active."
-          : "Map is off. Add a Mappls key in CONFIG to show it.";
-        return;
-      }
-      try {
-        if (mapplsMap && typeof mapplsMap.remove === "function") mapplsMap.remove();
-      } catch (_) { /* ignore */ }
-      box.textContent = "";
-      try {
-        mapplsMap = new window.mappls.Map("mappls-map", { center: { lat, lng: lon }, zoom: 14, geolocation: false });
-        mapplsMap.on("load", () => {
-          new window.mappls.Marker({
-            map: mapplsMap,
-            position: { lat, lng: lon },
-            popupHtml: `<b>${esc(label)}</b>`
-          });
-        });
-      } catch (err) {
-        console.error("Map init failed:", err);
-        box.textContent = "Map could not load.";
-      }
-    }
-
-    /* ---------- Location & hospital search ---------- */
+    /* =========================================================
+       Location & hospital search
+       ========================================================= */
     function setGps(message, busy = false) {
       const s = $("gpsStatus");
       s.style.display = "block";
@@ -877,127 +889,135 @@
     }
 
     async function geocode(query) {
-      if (hasMappls()) {
-        try {
-          const url = `${CONFIG.mapplsGeocodeUrl.replace("KEY", CONFIG.mapplsKey)}?address=${encodeURIComponent(query)}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const d = await res.json();
-            const hit = d?.copResults?.[0];
-            if (hit) return { lat: parseFloat(hit.latitude), lon: parseFloat(hit.longitude) };
-          }
-        } catch (err) {
-          console.warn("Mappls geocode failed, trying OpenStreetMap:", err);
-        }
-      }
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-        { headers: { "Accept-Language": "en" } }
-      );
-      if (!res.ok) throw new Error("Geocoding failed");
+      const url = `${CONFIG.nominatimUrl}?format=json&limit=1&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+      if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
       const d = await res.json();
       if (!d.length) return null;
       return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
     }
 
-    async function findHospitalsMappls(lat, lon) {
-      const url = `${CONFIG.mapplsNearbyUrl}?keywords=hospital&refLocation=${lat},${lon}&radius=${CONFIG.radiusMeters}&access_token=${CONFIG.mapplsKey}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Mappls HTTP ${res.status}`);
-      const d = await res.json();
-      return (d.suggestedLocations || [])
-        .map((p) => ({
-          name: p.placeName,
-          address: p.placeAddress || "Address not listed",
-          lat: Number(p.latitude),
-          lon: Number(p.longitude)
-        }))
-        .filter((p) => p.name && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+    function buildOverpassQuery(lat, lon) {
+      return `[out:json][timeout:25];` +
+        `nwr["amenity"="hospital"](around:${CONFIG.radiusMeters},${lat},${lon});` +
+        `out center tags 60;`;
     }
 
-    async function findHospitalsOsm(lat, lon) {
-      const q = `[out:json][timeout:15];(node["amenity"="hospital"](around:${CONFIG.radiusMeters},${lat},${lon});way["amenity"="hospital"](around:${CONFIG.radiusMeters},${lat},${lon}););out center 20;`;
-      const res = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(q)
-      });
-      if (!res.ok) throw new Error("Overpass request failed");
-      const d = await res.json();
-      return d.elements
-        .map((el) => {
-          const t = el.tags || {};
-          const plat = el.lat ?? el.center?.lat;
-          const plon = el.lon ?? el.center?.lon;
-          const address = [t["addr:street"], t["addr:suburb"] || t["addr:city"]].filter(Boolean).join(", ");
-          return { name: t.name || "Hospital", address: address || "Address not listed", lat: plat, lon: plon };
-        })
-        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
-    }
-
-    async function findHospitals(lat, lon) {
-      if (hasMappls() && CONFIG.useMapplsNearby) {
+    async function fetchOverpass(query) {
+      let lastError = null;
+      for (const url of CONFIG.overpassUrls) {
         try {
-          const list = await findHospitalsMappls(lat, lon);
-          if (list.length) return { source: "Mappls", list };
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "data=" + encodeURIComponent(query)
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+          return await res.json();
         } catch (err) {
-          console.warn("Mappls nearby failed, using OpenStreetMap:", err);
+          console.warn("Overpass server failed, trying next:", err);
+          lastError = err;
         }
       }
-      return { source: "OpenStreetMap", list: await findHospitalsOsm(lat, lon) };
+      throw lastError || new Error("All Overpass servers failed");
     }
 
-    function renderHospitals(list, source) {
+    function parseHospitals(data, fromLat, fromLon) {
+      return (data.elements || [])
+        .map((el) => {
+          const t = el.tags || {};
+          const lat = el.lat ?? el.center?.lat;
+          const lon = el.lon ?? el.center?.lon;
+          const addressParts = [
+            [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" "),
+            t["addr:suburb"] || t["addr:city"]
+          ].filter(Boolean);
+          return {
+            name: t.name || "Hospital (name not listed)",
+            address: addressParts.join(", "),
+            phone: t.phone || t["contact:phone"] || "",
+            lat,
+            lon,
+            distance: Number.isFinite(lat) && Number.isFinite(lon)
+              ? haversineKm(fromLat, fromLon, lat, lon)
+              : Infinity
+          };
+        })
+        .filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lon))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, CONFIG.maxHospitals);
+    }
+
+    function renderHospitalList(list) {
       const c = $("hospitalListContainer");
       c.textContent = "";
 
-      if (list.length === 0) {
-        c.innerHTML = `<p class="muted-center">No hospitals found within ${CONFIG.radiusMeters / 1000} km. Try a wider search.</p>`;
-        return;
-      }
+      if (list.length === 0) return;
 
-      list.slice(0, 10).forEach((p, i) => {
+      list.forEach((h, i) => {
         const row = document.createElement("div");
         row.className = "hospital-item";
 
         const info = document.createElement("div");
         info.className = "hospital-info";
-        const h = document.createElement("h4");
-        h.textContent = `${i + 1}. ${p.name}`;
-        const addr = document.createElement("p");
-        addr.textContent = `${p.address} · ${p.distance.toFixed(1)} km away`;
-        info.append(h, addr);
+        info.title = "Show on map";
+        const title = document.createElement("h4");
+        title.textContent = `${i + 1}. ${h.name}`;
+        const detail = document.createElement("p");
+        const parts = [h.address || "Address not listed", `${h.distance.toFixed(1)} km away`];
+        if (h.phone) parts.push(`Phone: ${h.phone}`);
+        detail.textContent = parts.join(" · ");
+        info.append(title, detail);
 
-        const link = document.createElement("a");
-        link.className = "btn btn-outline btn-sm";
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.href = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
-        link.innerHTML = `<i class="fa-solid fa-directions" aria-hidden="true"></i> Directions`;
+        info.addEventListener("click", () => {
+          const marker = hospitalMarkers[i];
+          if (!marker || !osmMap) return;
+          osmMap.setView(marker.getLatLng(), 16);
+          marker.openPopup();
+        });
 
-        row.append(info, link);
+        const actions = document.createElement("div");
+        actions.className = "hospital-actions";
+        const osmLink = document.createElement("a");
+        osmLink.className = "btn btn-outline btn-sm";
+        osmLink.target = "_blank";
+        osmLink.rel = "noopener noreferrer";
+        osmLink.href = `https://www.openstreetmap.org/?mlat=${h.lat}&mlon=${h.lon}#map=17/${h.lat}/${h.lon}`;
+        osmLink.innerHTML = `<i class="fa-solid fa-map" aria-hidden="true"></i> Open map`;
+        actions.appendChild(osmLink);
+
+        row.append(info, actions);
         c.appendChild(row);
       });
 
       const note = document.createElement("p");
-      note.className = "list-source";
-      note.textContent = `Source: ${source}`;
+      note.className = "muted-center";
+      note.style.textAlign = "left";
+      note.style.padding = "12px 0 0";
+      note.textContent = "Map data © OpenStreetMap contributors. Hospital listings may be incomplete.";
       c.appendChild(note);
     }
 
     async function searchAt(lat, lon, label) {
       setGps(`Finding hospitals near ${label}...`, true);
-      showMap(lat, lon, label);
+      plotSearchCenter(lat, lon, label);
+      $("hospitalListContainer").textContent = "";
+
       try {
-        const { source, list } = await findHospitals(lat, lon);
-        const withDistance = list
-          .map((p) => ({ ...p, distance: haversineKm(lat, lon, p.lat, p.lon) }))
-          .sort((a, b) => a.distance - b.distance);
-        renderHospitals(withDistance, source);
-        setGps(`Showing hospitals near ${label}.`);
+        const data = await fetchOverpass(buildOverpassQuery(lat, lon));
+        const hospitals = parseHospitals(data, lat, lon);
+        plotHospitals(hospitals);
+        renderHospitalList(hospitals);
+
+        if (hospitals.length === 0) {
+          setGps(`No hospitals listed within ${CONFIG.radiusMeters / 1000} km of ${label}. Try a wider search.`);
+          $("hospitalListContainer").innerHTML = `<p class="muted-center">No hospitals found nearby.</p>`;
+        } else {
+          setGps(`Showing ${hospitals.length} hospitals near ${label}, closest first.`);
+        }
       } catch (err) {
         console.error("Hospital search failed:", err);
-        setGps("Could not load hospitals. Check your connection and try again.");
+        setGps("Could not load hospitals. The map servers may be busy. Try again in a minute.");
       }
     }
 
