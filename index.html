@@ -227,17 +227,17 @@
       </div>
     </div>
 
-    <!-- VIEW 4: NEARBY HOSPITALS (EMBEDDED GOOGLE MAP SNIPPET) -->
+    <!-- VIEW 4: NEARBY HOSPITALS (GOOGLE MAPS EMBEDDED) -->
     <div id="view-hospitals" class="view">
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals Search</h2>
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals (Auto-Detected)</h2>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 450px;">
-            <input type="text" id="manualLocationInput" placeholder="Enter city or area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
-            <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search Area</button>
+            <input type="text" id="manualLocationInput" placeholder="Or type city/area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+            <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
           </div>
         </div>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">Type your city or area above to automatically load local hospitals on Google Maps.</p>
+        <div id="gpsStatus" style="font-size: 0.85rem; color: var(--primary); font-weight: 500; margin-bottom: 10px; display: none;"></div>
         
         <div class="map-frame-container">
           <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals%20in%20Bangalore&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
@@ -286,6 +286,9 @@
         byId(targetId).classList.add('active');
         e.currentTarget.classList.add('active');
 
+        if (targetId === 'view-hospitals') {
+          autoFetchGpsAndLoadMap(); // Automatically detect location when tab opens!
+        }
         if (targetId === 'view-history' && chartInstance) {
           setTimeout(() => chartInstance.resize(), 100);
         }
@@ -489,21 +492,55 @@
       });
     }
 
-    // --- Search Logic for Google Maps Embed Snippet ---
-    function performMapSearch() {
-      const location = byId("manualLocationInput").value.trim() || "Bangalore";
-      const searchUrl = `https://maps.google.com/maps?q=hospitals%20in%20${encodeURIComponent(location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+    // --- Automatic GPS & Search Logic for Google Maps Embed ---
+    function updateMapEmbed(searchQuery) {
+      const searchUrl = `https://maps.google.com/maps?q=${encodeURIComponent(searchQuery)}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
       byId("googleMapIframe").src = searchUrl;
     }
 
-    byId("searchManualButton").addEventListener("click", performMapSearch);
+    function performTextSearch() {
+      const locationText = byId("manualLocationInput").value.trim() || "Bangalore";
+      const status = byId("gpsStatus");
+      status.style.display = "block";
+      status.textContent = `Showing hospitals near "${locationText}"`;
+      updateMapEmbed(`hospitals in ${locationText}`);
+    }
+
+    function autoFetchGpsAndLoadMap() {
+      const status = byId("gpsStatus");
+      status.style.display = "block";
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Automatically detecting your GPS location...';
+
+      if (!navigator.geolocation) {
+        status.textContent = "Geolocation not supported. Showing Bangalore.";
+        updateMapEmbed("hospitals in Bangalore");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          status.innerHTML = `Location detected (${lat.toFixed(4)}, ${lon.toFixed(4)}). Loading nearby hospitals...`;
+          setTimeout(() => { status.style.display = "none"; }, 3000);
+          updateMapEmbed(`hospitals near ${lat},${lon}`);
+        },
+        (err) => {
+          status.textContent = "Location access denied/unavailable. Showing default area (Bangalore).";
+          updateMapEmbed("hospitals in Bangalore");
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
+
+    byId("searchManualButton").addEventListener("click", performTextSearch);
     byId("manualLocationInput").addEventListener("keypress", (e) => {
-      if (e.key === "Enter") performMapSearch();
+      if (e.key === "Enter") performTextSearch();
     });
 
     window.autoSearchHospitals = () => {
       document.querySelector('[data-target="view-hospitals"]').click();
-      performMapSearch();
+      autoFetchGpsAndLoadMap();
     };
   </script>
 </body>
