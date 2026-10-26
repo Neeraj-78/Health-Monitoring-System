@@ -3,11 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1769aa">
-  <title>Health Monitoring Dashboard</title>
+  <title>Health Monitor Dashboard</title>
 
-  <!-- Chart.js -->
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Chart.js & Date Adapter -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
   <!-- Leaflet map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -15,97 +21,105 @@
 
   <style>
     :root {
-      --blue: #1769aa;
-      --blue-dark: #125487;
-      --bg: #f2f5f9;
-      --text: #243447;
-      --muted: #6b7785;
-      --border: #e3e9f0;
-      --green: #17834a;
-      --red: #c83434;
-      --sidebar-width: 250px;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --sidebar-bg: #1e293b;
+      --sidebar-text: #94a3b8;
+      --sidebar-active: #38bdf8;
+      --bg-main: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --green: #10b981;
+      --red: #ef4444;
+      --sidebar-width: 260px;
     }
-    * { box-sizing: border-box; }
-    body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; color: var(--text); display: flex; min-height: 100vh; }
-    
-    /* Layout */
-    .sidebar { width: var(--sidebar-width); background: #fff; border-right: 1px solid var(--border); position: fixed; height: 100vh; padding: 20px 0; display: flex; flex-direction: column; z-index: 100; }
-    .main-content { margin-left: var(--sidebar-width); flex: 1; padding: 20px; max-width: calc(100% - var(--sidebar-width)); }
-    
-    /* Sidebar Items */
-    .brand { font-size: 1.3rem; font-weight: 700; color: var(--blue-dark); padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
-    .nav-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 15px 20px; font-size: 1.05rem; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; }
-    .nav-btn:hover { background: #f8fafc; color: var(--blue); }
-    .nav-btn.active { background: #eaf3fb; color: var(--blue); border-left-color: var(--blue); font-weight: 600; }
-    
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main); display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: var(--sidebar-width); background-color: var(--sidebar-bg); position: fixed; height: 100vh; display: flex; flex-direction: column; z-index: 100; }
+    .brand { padding: 25px 20px; color: #fff; font-size: 1.4rem; font-weight: 700; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .brand i { color: var(--sidebar-active); }
+    .nav-links { padding: 20px 10px; display: flex; flex-direction: column; gap: 5px; }
+    .nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; padding: 14px 15px; border-radius: 8px; font-size: 1rem; font-weight: 500; color: var(--sidebar-text); cursor: pointer; transition: all 0.2s; text-align: left; font-family: inherit; }
+    .nav-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .nav-btn.active { background: rgba(56, 189, 248, 0.1); color: var(--sidebar-active); border-left: 4px solid var(--sidebar-active); }
+
+    /* Main Content */
+    .main-content { margin-left: var(--sidebar-width); flex: 1; padding: 30px; max-width: calc(100% - var(--sidebar-width)); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+    .header h1 { font-size: 1.8rem; color: var(--text-main); font-weight: 600; }
+    .status-badge { padding: 8px 16px; border-radius: 50px; font-size: 0.85rem; font-weight: 600; background: #e0f2fe; color: #0369a1; display: flex; align-items: center; gap: 8px; }
+    .status-badge::before { content: ''; display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
     /* Views */
     .view { display: none; animation: fadeIn 0.3s ease; }
     .view.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-    h2 { margin: 0 0 14px; font-size: 1.2rem; color: #536575; border-bottom: 1px solid var(--border); padding-bottom: 11px; }
-    .card { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 5px 18px rgba(31, 51, 73, .07); margin-bottom: 20px; }
+    /* Cards & Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 25px; }
+    .card { background: var(--card-bg); border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); border: 1px solid var(--border); }
+    .card-title { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .value { font-size: 2.5rem; font-weight: 700; color: var(--text-main); }
+    .unit { font-size: 1rem; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
     
-    /* Dashboard Grid */
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
-    .value { font-size: clamp(2rem, 5vw, 2.6rem); font-weight: 700; margin: 12px 0 4px; }
-    .unit { font-size: .45em; font-weight: 500; color: #82909e; margin-left: 5px; }
-    .status-ok { color: var(--green); }
-    .status-alert { color: var(--red); }
-    .subtext { color: var(--muted); font-size: .9rem; }
-
-    /* Suggestions Card */
-    .suggestion-card { background: #eaf3fb; border-left: 5px solid var(--blue); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-    .suggestion-card h3 { margin: 0 0 10px; color: var(--blue-dark); font-size: 1.1rem; }
-    #suggestionsText { font-size: 1rem; line-height: 1.6; color: #20364d; font-weight: 500; margin: 0; }
-
-    /* Alerts */
-    .alert-box { background: #fff0f0; border-left: 5px solid var(--red); padding: 17px; margin-bottom: 20px; border-radius: 8px; display: none; }
-    .alert-box h3 { margin: 0 0 8px; color: #a92323; }
+    /* Alerts & Suggestions */
+    .suggestion-card { background: #f0fdf4; border-left: 5px solid var(--green); border-radius: 12px; padding: 20px; margin-bottom: 25px; }
+    .suggestion-card.alert-mode { background: #fef2f2; border-left-color: var(--red); }
+    .suggestion-card h3 { font-size: 1.1rem; color: var(--text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    #suggestionsText { font-size: 1rem; line-height: 1.6; color: var(--text-main); }
 
     /* Tables */
-    .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; }
-    th, td { padding: 14px 15px; border-bottom: 1px solid var(--border); }
-    th { background: #f8fafc; font-weight: 600; color: #475569; position: sticky; top: 0; }
-    tr:hover { background: #f1f5f9; }
-    .alert-row td { color: var(--red); font-weight: 600; }
-
-    /* Buttons */
-    .btn { display: inline-flex; justify-content: center; align-items: center; gap: 7px; background: var(--blue); color: #fff; border: 0; padding: 11px 16px; border-radius: 7px; cursor: pointer; font-size: .95rem; text-decoration: none; transition: 0.2s; }
-    .btn:hover { background: var(--blue-dark); }
-    .btn:disabled { opacity: .6; cursor: wait; }
-    .btn-green { background: #208a57; }
-    .btn-green:hover { background: #176d43; }
-    .btn-light { color: var(--blue); background: #eaf3fb; }
-    .btn-light:hover { background: #d8eafa; }
-
-    /* Chart & Map */
-    .chart-wrap { position: relative; height: 350px; width: 100%; }
-    #map { height: 450px; width: 100%; border-radius: 10px; margin-top: 15px; display: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); z-index: 1; }
-    #mapStatus { display: none; padding: 12px 14px; margin: 15px 0; border-radius: 8px; background: #eaf3fb; color: #195b8e; }
+    .table-container { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--card-bg); }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+    th { background: #f1f5f9; font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover { background: #f8fafc; }
     
-    /* Hospitals List */
-    .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--border); }
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer; transition: 0.2s; font-family: inherit; text-decoration: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+    .btn-outline:hover { background: #f1f5f9; }
+    .btn-sm { padding: 8px 12px; font-size: 0.85rem; }
+
+    /* Map & Chart */
+    .chart-container { position: relative; height: 400px; width: 100%; }
+    #map { height: 500px; width: 100%; border-radius: 12px; margin-top: 20px; display: none; z-index: 1; border: 1px solid var(--border); }
+    
+    /* Hospital List */
+    .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
     .hospital-item:last-child { border-bottom: none; }
-    .hospital-info h4 { margin: 0 0 5px; color: #20364d; }
-    .hospital-info p { margin: 3px 0 0; font-size: .88rem; color: var(--muted); }
+    .hospital-info h4 { font-size: 1.05rem; margin-bottom: 4px; }
+    .hospital-info p { font-size: 0.9rem; color: var(--text-muted); }
 
     /* Login */
-    .login-overlay { position: fixed; inset: 0; background: rgba(16, 30, 45, .78); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 18px; }
-    .login-box { background: #fff; padding: 30px; border-radius: 14px; width: min(390px, 100%); text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
-    .login-box input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5df; border-radius: 7px; font-size: 1rem; }
-    .login-box button { width: 100%; margin-top: 12px; }
-    .error-text { color: #b42318; font-size: .9rem; margin-top: 10px; }
+    .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+    .login-box { background: var(--card-bg); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+    .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
+    .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 25px; }
+    .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; transition: 0.2s; }
+    .login-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+    .login-box button { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .error-text { color: var(--red); font-size: 0.9rem; margin-top: 15px; text-align: center; }
+    
     .hidden { display: none !important; }
 
-    /* Mobile Responsive */
+    /* Mobile */
     @media (max-width: 768px) {
       body { flex-direction: column; }
-      .sidebar { width: 100%; height: auto; position: relative; padding: 10px; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; overflow-x: auto; padding: 10px; }
       .brand { display: none; }
-      .nav-btn { border-left: none; border-bottom: 3px solid transparent; padding: 10px 15px; width: auto; white-space: nowrap; }
-      .nav-btn.active { border-left: none; border-bottom-color: var(--blue); }
+      .nav-links { flex-direction: row; padding: 0; width: 100%; }
+      .nav-btn { padding: 10px 15px; white-space: nowrap; }
       .main-content { margin-left: 0; max-width: 100%; padding: 15px; }
     }
   </style>
@@ -115,88 +129,83 @@
   <!-- Login Overlay -->
   <div id="loginOverlay" class="login-overlay">
     <form class="login-box" id="loginForm">
-      <h2 style="border:0; padding:0; color:#20364d;">Secure Login</h2>
-      <p class="subtext">Sign in to your health dashboard.</p>
-      <input type="email" id="email" placeholder="Email" required>
+      <h2>Welcome Back</h2>
+      <p>Sign in to your health dashboard</p>
+      <input type="email" id="email" placeholder="Email Address" required>
       <input type="password" id="password" placeholder="Password" required>
-      <button class="btn" id="loginButton" type="submit">Login</button>
+      <button type="submit" id="loginButton">Sign In</button>
       <p id="loginError" class="error-text"></p>
     </form>
   </div>
 
   <!-- Sidebar Navigation -->
-  <nav class="sidebar" id="sidebar" style="display:none;">
-    <div class="brand">🏥 Health Monitor</div>
-    <button class="nav-btn active" data-target="view-dashboard">Live Dashboard</button>
-    <button class="nav-btn" data-target="view-history">History & Graphs</button>
-    <button class="nav-btn" data-target="view-alerts">Alert History</button>
-    <button class="nav-btn" data-target="view-hospitals">Nearby Hospitals</button>
+  <nav class="sidebar hidden" id="sidebar">
+    <div class="brand">
+      <i class="fa-solid fa-heart-pulse"></i> VitalWatch
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" data-target="view-dashboard"><i class="fa-solid fa-chart-line"></i> Live Dashboard</button>
+      <button class="nav-btn" data-target="view-history"><i class="fa-solid fa-clock-rotate-left"></i> History & Graphs</button>
+      <button class="nav-btn" data-target="view-alerts"><i class="fa-solid fa-triangle-exclamation"></i> Alert History</button>
+      <button class="nav-btn" data-target="view-hospitals"><i class="fa-solid fa-hospital"></i> Nearby Hospitals</button>
+    </div>
   </nav>
 
-  <!-- Main Content Area -->
-  <main class="main-content" id="mainContent" style="display:none;">
+  <!-- Main Content -->
+  <main class="main-content hidden" id="mainContent">
     
-    <header style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-      <h1 style="font-size: 1.5rem; margin:0; color: #20364d;">Dashboard</h1>
-      <div id="connectionStatus" class="subtext" style="background: #eaf3fb; padding: 5px 10px; border-radius: 20px;">Connecting...</div>
+    <header class="header">
+      <h1>Dashboard</h1>
+      <div class="status-badge" id="connectionStatus">System Online</div>
     </header>
 
     <!-- VIEW 1: LIVE DASHBOARD -->
     <div id="view-dashboard" class="view active">
-      <section class="grid">
+      <div class="grid">
         <div class="card">
-          <h2>Heart Rate</h2>
+          <div class="card-title"><i class="fa-solid fa-heart" style="color: var(--red);"></i> Heart Rate</div>
           <div class="value" id="hrValue">--<span class="unit">bpm</span></div>
         </div>
         <div class="card">
-          <h2>SpO₂</h2>
+          <div class="card-title"><i class="fa-solid fa-lungs" style="color: var(--primary);"></i> SpO₂</div>
           <div class="value" id="spo2Value">--<span class="unit">%</span></div>
         </div>
         <div class="card">
-          <h2>Temperature</h2>
+          <div class="card-title"><i class="fa-solid fa-temperature-half" style="color: #f59e0b;"></i> Temperature</div>
           <div class="value" id="tempValue">--<span class="unit">°C</span></div>
         </div>
-        <div class="card">
-          <h2>Status</h2>
-          <div class="value" id="statusValue">--</div>
-          <div class="subtext" id="updatedAt">Waiting...</div>
-        </div>
-      </section>
-
-      <div class="suggestion-card">
-        <h3>💡 Health Suggestions</h3>
-        <p id="suggestionsText">Waiting for data to generate suggestions...</p>
       </div>
 
-      <section id="alertBox" class="alert-box">
-        <h3>⚠️ Health Alert</h3>
-        <p id="alertMessage"></p>
-      </section>
+      <div class="suggestion-card" id="suggestionBox">
+        <h3><i class="fa-solid fa-lightbulb"></i> Health Suggestions</h3>
+        <p id="suggestionsText">Waiting for live data...</p>
+      </div>
     </div>
 
     <!-- VIEW 2: HISTORY & GRAPHS -->
     <div id="view-history" class="view">
-      <div class="card">
-        <h2>📈 Trend Graph (Last 30 Readings)</h2>
-        <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
-        <p id="historyStatus" class="subtext" style="margin-top:10px;">Loading...</p>
+      <div class="card" style="margin-bottom: 25px;">
+        <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Vitals Trend (Time-Series)</h2>
+        <div class="chart-container">
+          <canvas id="historyChart"></canvas>
+        </div>
       </div>
 
       <div class="card">
-        <h2>📋 Full Data Log</h2>
-        <div class="table-wrapper">
+        <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Complete Data Log</h2>
+        <div class="table-container">
           <table>
             <thead>
               <tr>
                 <th>Timestamp</th>
-                <th>HR (bpm)</th>
-                <th>SpO2 (%)</th>
-                <th>Temp (°C)</th>
+                <th>Heart Rate</th>
+                <th>SpO2</th>
+                <th>Temperature</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody id="historyTableBody">
-              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+              <tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>
             </tbody>
           </table>
         </div>
@@ -206,21 +215,25 @@
     <!-- VIEW 3: ALERT HISTORY -->
     <div id="view-alerts" class="view">
       <div class="card">
-        <h2>🚨 Alert History</h2>
-        <p class="subtext" style="margin-bottom: 15px;">Only showing abnormal readings. If you see frequent alerts, please consult a doctor.</p>
-        <div class="table-wrapper">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">🚨 Alert History</h2>
+          <button class="btn btn-danger" onclick="autoSearchHospitals()">
+            <i class="fa-solid fa-location-dot"></i> Find Nearby Hospital for Alerts
+          </button>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 15px; font-size: 0.95rem;">Only showing abnormal readings. If you see frequent alerts, please consult a doctor.</p>
+        
+        <div class="table-container">
           <table>
             <thead>
               <tr>
                 <th>Timestamp</th>
                 <th>Alert Message</th>
-                <th>HR</th>
-                <th>SpO2</th>
-                <th>Temp</th>
+                <th>Alert Parameter</th>
               </tr>
             </thead>
             <tbody id="alertTableBody">
-              <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+              <tr><td colspan="3" style="text-align:center;">Loading alerts...</td></tr>
             </tbody>
           </table>
         </div>
@@ -230,15 +243,14 @@
     <!-- VIEW 4: NEARBY HOSPITALS -->
     <div id="view-hospitals" class="view">
       <div class="card">
-        <h2>📍 Nearby Medical Facilities</h2>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button class="btn btn-green" id="findHospitalsButton" type="button">Find Hospitals Near Me</button>
-          <a class="btn btn-light" id="googleMapsSearch" href="https://www.google.com/maps/search/hospitals+near+me/" target="_blank">Open in Google Maps</a>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Medical Facilities</h2>
+          <button class="btn btn-primary" id="findHospitalsButton" type="button"><i class="fa-solid fa-crosshairs"></i> Search Near Me</button>
         </div>
         
-        <div id="mapStatus"></div>
-        <div id="hospitalListContainer" style="margin-top: 15px;"></div>
+        <div id="mapStatus" style="padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); display: none;"></div>
         <div id="map"></div>
+        <div id="hospitalListContainer" style="margin-top: 20px;"></div>
       </div>
     </div>
 
@@ -249,7 +261,6 @@
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, inMemoryPersistence, signOut} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-    // --- CONFIGURATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
       authDomain: "health-monitoring-system-9b19f.firebaseapp.com",
@@ -260,6 +271,7 @@
       appId: "1:1090603150131:web:5412c37733158cb741ec46"
     };
 
+    // Your Cloud Database URL
     const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec";
 
     const app = initializeApp(firebaseConfig);
@@ -273,23 +285,19 @@
     let mapInstance = null;
     let userLat = null, userLon = null;
     let dashboardStarted = false;
-    let alertCountToday = 0;
 
     const byId = (id) => document.getElementById(id);
 
-    // --- Navigation Logic ---
+    // --- Navigation ---
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        // Remove active class from all views and buttons
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         
-        // Add active class to clicked button and target view
-        const targetId = e.target.getAttribute('data-target');
+        const targetId = e.currentTarget.getAttribute('data-target');
         byId(targetId).classList.add('active');
-        e.target.classList.add('active');
+        e.currentTarget.classList.add('active');
 
-        // Resize map/chart if they are in the target view
         if (targetId === 'view-hospitals' && mapInstance) {
           setTimeout(() => mapInstance.invalidateSize(), 100);
         }
@@ -299,104 +307,80 @@
       });
     });
 
-    // --- Authentication ---
+    // --- Auth ---
     byId("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = byId("email").value.trim();
-      const pass = byId("password").value;
       const btn = byId("loginButton");
       byId("loginError").textContent = "";
-      btn.disabled = true; btn.textContent = "Signing in…";
+      btn.textContent = "Signing in...";
       
       try {
-        await signInWithEmailAndPassword(auth, email, pass);
+        await signInWithEmailAndPassword(auth, byId("email").value.trim(), byId("password").value);
       } catch (error) {
-        byId("loginError").textContent = error.message.includes("invalid-credential") ? "Invalid email or password." : error.message;
+        byId("loginError").textContent = "Invalid email or password.";
       } finally {
-        btn.disabled = false; btn.textContent = "Login";
+        btn.textContent = "Sign In";
       }
     });
 
     onAuthStateChanged(auth, (user) => {
       if (user) {
         byId("loginOverlay").classList.add("hidden");
-        byId("sidebar").style.display = "flex";
-        byId("mainContent").style.display = "block";
+        byId("sidebar").classList.remove("hidden");
+        byId("mainContent").classList.remove("hidden");
         if (!dashboardStarted) {
           dashboardStarted = true;
           startDashboard();
         }
       } else {
         byId("loginOverlay").classList.remove("hidden");
-        byId("sidebar").style.display = "none";
-        byId("mainContent").style.display = "none";
+        byId("sidebar").classList.add("hidden");
+        byId("mainContent").classList.add("hidden");
       }
     });
 
     // --- Core Logic ---
     function startDashboard() {
-      byId("connectionStatus").textContent = "● Live data connected";
-      
-      // Listen to Realtime DB
+      // Firebase Live Listener
       onValue(ref(database, "/readings"), (snapshot) => {
         const data = snapshot.val();
-        if (data) updateUI(data);
+        if (data) updateLiveUI(data);
       });
 
       fetchHistory();
-      window.setInterval(fetchHistory, 60000); // Update history every 60s
+      setInterval(fetchHistory, 60000);
     }
 
-    function setValueWithUnit(id, value, unit) {
-      const el = byId(id);
-      el.textContent = "";
-      el.append(String(value || "--"));
-      const span = document.createElement("span");
-      span.className = "unit"; span.textContent = unit;
-      el.appendChild(span);
-    }
-
-    function updateUI(data) {
-      setValueWithUnit("hrValue", data.hr, "bpm");
-      setValueWithUnit("spo2Value", data.spo2, "%");
-      const temp = data.temp ? Number(data.temp).toFixed(1) : "--";
-      setValueWithUnit("tempValue", temp, "°C");
+    function updateLiveUI(data) {
+      byId("hrValue").innerHTML = `${data.hr || '--'}<span class="unit">bpm</span>`;
+      byId("spo2Value").innerHTML = `${data.spo2 || '--'}<span class="unit">%</span>`;
+      byId("tempValue").innerHTML = `${data.temp ? Number(data.temp).toFixed(1) : '--'}<span class="unit">°C</span>`;
 
       const isAlert = String(data.alertMsg).toLowerCase() !== "normal";
-      byId("statusValue").textContent = isAlert ? "ALERT" : "NORMAL";
-      byId("statusValue").className = isAlert ? "value status-alert" : "value status-ok";
+      const sugBox = byId("suggestionBox");
       
-      byId("updatedAt").textContent = data.timestamp || "Just now";
-
       if (isAlert) {
-        byId("alertBox").style.display = "block";
-        byId("alertMessage").textContent = `Alert: ${data.alertMsg}`;
+        sugBox.classList.add("alert-mode");
+        byId("suggestionsText").innerHTML = `⚠️ <b>Alert:</b> ${data.alertMsg}. Please take necessary action.`;
       } else {
-        byId("alertBox").style.display = "none";
+        sugBox.classList.remove("alert-mode");
+        generateSuggestions(data.hr, data.spo2, data.temp);
       }
-
-      generateSuggestions(data.hr, data.spo2, data.temp);
     }
 
     function generateSuggestions(hr, spo2, temp) {
       hr = Number(hr); spo2 = Number(spo2); temp = Number(temp);
-      let suggestions = [];
-
-      if (spo2 > 0 && spo2 < 90) suggestions.push("⚠️ <b>Low Oxygen:</b> Sit down, rest, and seek medical attention if you feel short of breath.");
-      else if (spo2 >= 90 && spo2 < 95) suggestions.push("Oxygen is slightly low. Try taking slow, deep breaths.");
-
-      if (hr > 100) suggestions.push("❤️ <b>High Heart Rate:</b> Rest and drink water. If it persists without exercise, consult a doctor.");
-      else if (hr > 0 && hr < 60) suggestions.push("❤️ <b>Low Heart Rate:</b> Usually normal for athletes, but monitor for dizziness.");
-
-      if (temp > 38.0) suggestions.push("🌡️ <b>Fever detected:</b> Stay hydrated, rest, and monitor your temperature.");
-      else if (temp > 0 && temp < 35.0) suggestions.push("🌡️ <b>Low body temperature:</b> Warm up and monitor closely.");
-
-      if (suggestions.length === 0 && hr > 0) suggestions.push("✅ <b>All vitals are within normal ranges.</b> Keep up the healthy habits!");
+      let tips = [];
       
-      byId("suggestionsText").innerHTML = suggestions.join("<br><br>");
+      if (spo2 > 0 && spo2 < 95) tips.push("Try taking slow, deep breaths to improve oxygen levels.");
+      if (hr > 100) tips.push("Your heart rate is high. Rest and drink water.");
+      if (temp > 37.5) tips.push("You may have a fever. Stay hydrated and monitor your temperature.");
+      
+      if (tips.length === 0) tips.push("✅ <b>All vitals are within normal ranges.</b> Keep up the healthy habits!");
+      byId("suggestionsText").innerHTML = tips.join("<br><br>");
     }
 
-    // --- Fetching Historical Data ---
+    // --- Fetch History ---
     async function fetchHistory() {
       try {
         const response = await fetch(SHEETS_API_URL, { cache: "no-store" });
@@ -406,40 +390,53 @@
         const validRows = rows.filter(r => r && r.Timestamp);
         if (validRows.length === 0) return;
 
-        // 1. Render Chart (Last 30)
-        renderChart(validRows.slice(-30));
-
-        // 2. Render History Table (Newest first)
-        renderHistoryTable(validRows);
-
-        // 3. Render Alert Table (Filtered for Alerts only)
-        renderAlertTable(validRows);
-
-        byId("historyStatus").textContent = `Showing last 30 readings on graph. Data updated successfully.`;
+        renderChart(validRows.slice(-30)); // Graph last 30
+        renderHistoryTable(validRows);     // Full table
+        renderAlertTable(validRows);       // Alerts only
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Fetch error:", error);
       }
     }
 
+    // --- Graph Logic (Time-Series & Gap-Aware) ---
     function renderChart(rows) {
       if (typeof Chart === "undefined") return;
-      const labels = rows.map(r => new Date(r.Timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-      const hrData = rows.map(r => Number(r['Heart Rate (BPM)'] || r.hr));
-      const spo2Data = rows.map(r => Number(r['SpO2 (%)'] || r.spo2));
+      
+      // Map to objects with actual Date objects for the time scale
+      const chartData = rows.map(r => ({
+        x: new Date(r.Timestamp),
+        hr: Number(r['Heart Rate (BPM)'] || r.hr),
+        spo2: Number(r['SpO2 (%)'] || r.spo2)
+      })).filter(d => !isNaN(d.x.getTime())); // Filter invalid dates
 
       const ctx = byId("historyChart").getContext("2d");
       if (chartInstance) chartInstance.destroy();
       
       chartInstance = new Chart(ctx, {
         type: "line",
-        data: { labels, datasets: [
-          { label: "Heart Rate (bpm)", data: hrData, borderColor: "#e74c3c", tension: .25 },
-          { label: "SpO₂ (%)", data: spo2Data, borderColor: "#247bc1", tension: .25 }
-        ]},
-        options: { responsive: true, maintainAspectRatio: false }
+        data: {
+          datasets: [
+            { label: "Heart Rate (bpm)", data: chartData.map(d => ({x: d.x, y: d.hr})), borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)", tension: 0.3, fill: true },
+            { label: "SpO₂ (%)", data: chartData.map(d => ({x: d.x, y: d.spo2})), borderColor: "#4f46e5", backgroundColor: "rgba(79, 70, 229, 0.1)", tension: 0.3, fill: true }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time', // This creates the gap if data stops!
+              time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+              grid: { display: false }
+            },
+            y: { beginAtZero: false }
+          }
+        }
       });
     }
 
+    // --- Tables Logic ---
     function renderHistoryTable(rows) {
       const tbody = byId("historyTableBody");
       tbody.innerHTML = "";
@@ -448,12 +445,11 @@
         const alertMsg = r['Alert Message'] || r.alertMsg || 'Normal';
         const isAlert = alertMsg.toLowerCase() !== 'normal';
         const tr = document.createElement("tr");
-        
         tr.innerHTML = `
           <td>${new Date(r.Timestamp).toLocaleString()}</td>
-          <td>${r['Heart Rate (BPM)'] || r.hr || '--'}</td>
-          <td>${r['SpO2 (%)'] || r.spo2 || '--'}</td>
-          <td>${r['Temp (°C)'] || r.temp || '--'}</td>
+          <td>${r['Heart Rate (BPM)'] || r.hr || '--'} bpm</td>
+          <td>${r['SpO2 (%)'] || r.spo2 || '--'}%</td>
+          <td>${r['Temp (°C)'] || r.temp || '--'} °C</td>
           <td style="color:${isAlert ? 'var(--red)' : 'var(--green)'}; font-weight:600;">${alertMsg}</td>
         `;
         tbody.appendChild(tr);
@@ -464,31 +460,51 @@
       const tbody = byId("alertTableBody");
       tbody.innerHTML = "";
       
-      // Filter only alerts and reverse
       const alerts = rows.filter(r => {
         const msg = String(r['Alert Message'] || r.alertMsg || '').trim();
         return msg && msg.toLowerCase() !== 'normal';
       }).reverse();
 
       if (alerts.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--green); font-weight:600;">No alerts found in history.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--green); font-weight:600;">No alerts recorded.</td></tr>`;
         return;
       }
 
       alerts.forEach(r => {
-        const alertMsg = r['Alert Message'] || r.alertMsg;
+        const msg = r['Alert Message'] || r.alertMsg;
+        
+        // Determine Alert Parameter (What caused the alert?)
+        let param = "Unknown";
+        const hr = Number(r['Heart Rate (BPM)'] || r.hr);
+        const spo2 = Number(r['SpO2 (%)'] || r.spo2);
+        const temp = Number(r['Temp (°C)'] || r.temp);
+        
+        if (hr > 100) param = `High HR (${hr} bpm)`;
+        else if (hr < 60 && hr > 0) param = `Low HR (${hr} bpm)`;
+        else if (spo2 < 95 && spo2 > 0) param = `Low SpO2 (${spo2}%)`;
+        else if (temp > 37.5) param = `High Temp (${temp}°C)`;
+        else param = msg; // Fallback
+
         const tr = document.createElement("tr");
-        tr.className = "alert-row";
         tr.innerHTML = `
           <td>${new Date(r.Timestamp).toLocaleString()}</td>
-          <td>${alertMsg}</td>
-          <td>${r['Heart Rate (BPM)'] || r.hr || '--'}</td>
-          <td>${r['SpO2 (%)'] || r.spo2 || '--'}</td>
-          <td>${r['Temp (°C)'] || r.temp || '--'}</td>
+          <td style="color: var(--red); font-weight: 600;">${msg}</td>
+          <td>${param}</td>
         `;
         tbody.appendChild(tr);
       });
     }
+
+    // --- Hospital Auto-Search (From Alert Page) ---
+    window.autoSearchHospitals = () => {
+      // Switch to Hospitals tab
+      document.querySelector('[data-target="view-hospitals"]').click();
+      
+      // Wait for tab animation, then trigger search
+      setTimeout(() => {
+        byId("findHospitalsButton").click();
+      }, 300);
+    };
 
     // --- Map & Hospital Logic ---
     byId("findHospitalsButton").addEventListener("click", () => {
@@ -496,7 +512,7 @@
       const btn = byId("findHospitalsButton");
       
       status.style.display = "block";
-      status.textContent = "Getting location... Allow access if prompted.";
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Getting location... Allow access if prompted.';
       btn.disabled = true;
 
       if (!navigator.geolocation) {
@@ -506,8 +522,7 @@
 
       navigator.geolocation.getCurrentPosition(async (pos) => {
         userLat = pos.coords.latitude; userLon = pos.coords.longitude;
-        byId("googleMapsSearch").href = `https://www.google.com/maps/search/hospitals/@${userLat},${userLon},14z`;
-        status.textContent = "Searching for nearby hospitals...";
+        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching hospitals within 5km...';
 
         try {
           const query = `[out:json];(nwr(around:5000,${userLat},${userLon})["amenity"~"hospital|clinic"];);out center;`;
@@ -515,14 +530,14 @@
           const data = await res.json();
           
           if (data.elements.length === 0) {
-            status.textContent = "No hospitals found within 5km.";
+            status.textContent = "No hospitals found nearby.";
             return;
           }
-          status.textContent = `Found ${data.elements.length} facilities within 5km.`;
+          status.textContent = `Found ${data.elements.length} medical facilities nearby.`;
           renderMap(data.elements);
           renderHospitalList(data.elements);
         } catch (e) {
-          status.textContent = "Search failed. Map server may be busy.";
+          status.textContent = "Search failed. Server busy.";
         } finally {
           btn.disabled = false;
         }
@@ -535,19 +550,17 @@
     function renderMap(elements) {
       byId("map").style.display = "block";
       if (!mapInstance) {
-        mapInstance = L.map('map').setView([userLat, userLon], 14);
+        mapInstance = L.map('map').setView([userLat, userLon], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
       } else {
         mapInstance.eachLayer(layer => { if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer); });
-        mapInstance.setView([userLat, userLon], 14);
+        mapInstance.setView([userLat, userLon], 13);
       }
       
-      // User marker (blue)
       L.circleMarker([userLat, userLon], { radius: 8, color: '#fff', weight: 2, fillColor: '#3498db', fillOpacity: 1 })
         .addTo(mapInstance).bindPopup("<b>Your Location</b>").openPopup();
 
-      // Hospital markers (red)
-      const hIcon = L.divIcon({ html: '<div style="font-size:20px;background:#fff;border-radius:50%;padding:4px;border:2px solid #e74c3c;">🏥</div>', className:'', iconSize:[32,32] });
+      const hIcon = L.divIcon({ html: '<div style="font-size:20px;background:#fff;border-radius:50%;padding:4px;border:2px solid #ef4444;">🏥</div>', className:'', iconSize:[32,32] });
       
       elements.forEach(el => {
         const lat = el.lat || el.center.lat;
