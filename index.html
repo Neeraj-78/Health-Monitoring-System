@@ -519,6 +519,8 @@
       // Verify these against your Mappls REST docs if Mappls results don't appear.
       mapplsNearbyUrl: "https://search.mappls.com/api/places/nearby/json",
       mapplsGeocodeUrl: "https://apis.mappls.com/advancedmaps/v1/KEY/geocoding",
+      // The Mappls REST nearby search needs server-side auth, so keep this false on a public page.
+      useMapplsNearby: false,
 
       defaultLocation: { lat: 12.9716, lon: 77.5946, name: "Bangalore" },
       refreshMs: 60000,
@@ -825,7 +827,7 @@
       if (!hasMappls()) return false;
       if (window.mappls) return true;
       try {
-        await loadScript(`https://apis.mappls.com/advancedmaps/api/${CONFIG.mapplsKey}/map_sdk?layer=vector&v=3.0`);
+        await loadScript(`https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${encodeURIComponent(CONFIG.mapplsKey)}`);
         return Boolean(window.mappls);
       } catch (err) {
         console.warn("Mappls SDK unavailable:", err);
@@ -847,7 +849,7 @@
       } catch (_) { /* ignore */ }
       box.textContent = "";
       try {
-        mapplsMap = new window.mappls.Map("mappls-map", { center: [lat, lon], zoom: 14, geolocation: false });
+        mapplsMap = new window.mappls.Map("mappls-map", { center: { lat, lng: lon }, zoom: 14, geolocation: false });
         mapplsMap.on("load", () => {
           new window.mappls.Marker({
             map: mapplsMap,
@@ -934,7 +936,7 @@
     }
 
     async function findHospitals(lat, lon) {
-      if (hasMappls()) {
+      if (hasMappls() && CONFIG.useMapplsNearby) {
         try {
           const list = await findHospitalsMappls(lat, lon);
           if (list.length) return { source: "Mappls", list };
