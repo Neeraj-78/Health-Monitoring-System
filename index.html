@@ -52,7 +52,7 @@
     .status-badge::before { content: ''; display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 
     /* Views */
-    .view { display: none; animation: fadeIn 0.3s ease; }
+    .view { display: none; animation: fadeIn 0.4s ease; }
     .view.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -64,7 +64,7 @@
     .unit { font-size: 1rem; font-weight: 500; color: var(--text-muted); margin-left: 4px; }
     
     /* Alerts & Suggestions */
-    .suggestion-card { background: #f0fdf4; border-left: 5px solid var(--green); border-radius: 12px; padding: 20px; margin-bottom: 25px; }
+    .suggestion-card { background: #f0fdf4; border-left: 5px solid var(--green); border-radius: 12px; padding: 20px; margin-bottom: 25px; transition: 0.3s; }
     .suggestion-card.alert-mode { background: #fef2f2; border-left-color: var(--red); }
     .suggestion-card h3 { font-size: 1.1rem; color: var(--text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
     #suggestionsText { font-size: 1rem; line-height: 1.6; color: var(--text-main); }
@@ -85,17 +85,13 @@
     .btn-danger:hover { background: #dc2626; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
     .btn-outline:hover { background: #f1f5f9; }
-    .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
 
     /* Map Snippet Container */
-    .map-frame-container { width: 100%; height: 400px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; }
+    .map-frame-container { width: 100%; height: 550px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; background: #e2e8f0; }
     .map-frame-container iframe { width: 100%; height: 100%; border: none; }
-
-    /* Hospital List */
-    .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
-    .hospital-item:last-child { border-bottom: none; }
-    .hospital-info h4 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); }
-    .hospital-info p { font-size: 0.9rem; color: var(--text-muted); }
+    .search-bar { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 600px; }
+    .search-input { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit; font-size: 1rem; min-width: 200px; }
+    .search-input:focus { border-color: var(--primary); }
 
     /* Login */
     .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
@@ -103,6 +99,7 @@
     .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
     .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 25px; }
     .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; }
+    .login-box input:focus { border-color: var(--primary); }
     .login-box button { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
     .error-text { color: var(--red); font-size: 0.9rem; margin-top: 15px; text-align: center; }
     
@@ -115,6 +112,7 @@
       .nav-links { flex-direction: row; padding: 0; width: 100%; }
       .nav-btn { padding: 10px 15px; white-space: nowrap; }
       .main-content { margin-left: 0; max-width: 100%; padding: 15px; }
+      .map-frame-container { height: 400px; }
     }
   </style>
 </head>
@@ -180,7 +178,7 @@
     <div id="view-history" class="view">
       <div class="card" style="margin-bottom: 25px;">
         <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Today's Vitals Trend (Last 30 Readings)</h2>
-        <div class="chart-container">
+        <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
           <canvas id="historyChart"></canvas>
         </div>
       </div>
@@ -234,26 +232,31 @@
       </div>
     </div>
 
-    <!-- VIEW 4: NEARBY HOSPITALS -->
+    <!-- VIEW 4: NEARBY HOSPITALS (MAPPLS) -->
     <div id="view-hospitals" class="view">
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Medical Facilities & Map</h2>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 450px;">
-            <input type="text" id="manualLocationInput" placeholder="Search area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
-            <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals Search</h2>
+          
+          <div class="search-bar">
+            <input type="text" id="manualLocationInput" class="search-input" placeholder="Enter city or area (e.g. Mumbai)">
+            <button class="btn btn-outline" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+            <button class="btn btn-primary" id="gpsSearchButton" type="button"><i class="fa-solid fa-location-crosshairs"></i> Use My Location</button>
           </div>
         </div>
-        <div id="gpsStatus" style="font-size: 0.9rem; color: var(--primary); font-weight: 500; margin-bottom: 10px; display: none;"></div>
         
-        <!-- Google Maps Embed Iframe -->
+        <!-- Auto Detect Status Message -->
+        <p id="mapStatus" style="color: var(--primary); font-size: 0.95rem; margin-bottom: 15px; font-weight: 500;">
+          <i class="fa-solid fa-circle-info"></i> Type your area or use your current GPS location below.
+        </p>
+        
         <div class="map-frame-container">
-          <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals%20in%20Bangalore&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
-        </div>
-
-        <!-- Hospital Text List Container -->
-        <div id="hospitalListContainer" style="margin-top: 20px;">
-          <p style="color: var(--text-muted); text-align: center; padding: 20px;">Detecting location and fetching nearby hospitals...</p>
+          <!-- Mappls Nearby Hospitals Widget -->
+          <iframe id="mapplsMapIframe" 
+                  src="https://maps.Mappls.com/covid-places/embed?category=HSPVCC" 
+                  allow="geolocation" 
+                  loading="lazy">
+          </iframe>
         </div>
       </div>
     </div>
@@ -286,6 +289,7 @@
     
     let chartInstance = null;
     let dashboardStarted = false;
+    let hasAutoSearched = false;
 
     const byId = (id) => document.getElementById(id);
 
@@ -299,11 +303,14 @@
         byId(targetId).classList.add('active');
         e.currentTarget.classList.add('active');
 
-        if (targetId === 'view-hospitals') {
-          autoFetchGpsAndLoadData();
-        }
         if (targetId === 'view-history' && chartInstance) {
           setTimeout(() => chartInstance.resize(), 100);
+        }
+
+        // AUTO GPS TRIGGER: If opening hospitals tab for the first time
+        if (targetId === 'view-hospitals' && !hasAutoSearched) {
+          searchByGPS();
+          hasAutoSearched = true;
         }
       });
     });
@@ -390,12 +397,14 @@
         const validRows = rows.filter(r => r && r.Timestamp);
         if (validRows.length === 0) return;
 
+        // Filter for today's date only
         const todayString = new Date().toDateString();
         const todayRows = validRows.filter(r => {
           const rowDate = new Date(r.Timestamp);
           return !isNaN(rowDate.getTime()) && rowDate.toDateString() === todayString;
         });
 
+        // Get last 30 of today's readings for the chart
         const chartRows = todayRows.slice(-30); 
 
         renderChart(chartRows);
@@ -410,8 +419,18 @@
     function renderChart(rows) {
       if (typeof Chart === "undefined") return;
       
+      const ctx = byId("historyChart").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+      
       if (rows.length === 0) {
-        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: [], datasets: [] },
+          options: { 
+            responsive: true, maintainAspectRatio: false,
+            plugins: { title: { display: true, text: 'No readings recorded today yet.' } }
+          }
+        });
         return; 
       }
 
@@ -421,9 +440,6 @@
         spo2: Number(r['SpO2 (%)'] || r.spo2)
       })).filter(d => !isNaN(d.x.getTime()));
 
-      const ctx = byId("historyChart").getContext("2d");
-      if (chartInstance) chartInstance.destroy();
-      
       chartInstance = new Chart(ctx, {
         type: "line",
         data: {
@@ -437,11 +453,7 @@
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           scales: {
-            x: {
-              type: 'time',
-              time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
-              grid: { display: false }
-            },
+            x: { type: 'time', time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } }, grid: { display: false } },
             y: { beginAtZero: false }
           }
         }
@@ -484,7 +496,6 @@
 
       alerts.forEach(r => {
         const msg = r['Alert Message'] || r.alertMsg;
-        
         let param = "Unknown";
         const hr = Number(r['Heart Rate (BPM)'] || r.hr);
         const spo2 = Number(r['SpO2 (%)'] || r.spo2);
@@ -505,130 +516,80 @@
       });
     }
 
-    // --- Resilient Multi-Mirror Geolocation & Hospital Fetcher ---
-    async function loadHospitalsForCoords(lat, lon, displayName = "") {
-      const status = byId("gpsStatus");
-      status.style.display = "block";
-      status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Loading hospitals ${displayName ? 'near ' + displayName : 'at your location'}...`;
-
-      // 1. Update Google Maps Embed Iframe URL immediately
-      const queryStr = displayName ? `hospitals in ${displayName}` : `hospitals near ${lat},${lon}`;
-      byId("googleMapIframe").src = `https://maps.google.com/maps?q=${encodeURIComponent(queryStr)}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
-
-      // 2. Fetch Structured Text List with Multiple Fallback Mirrors to prevent 502 errors
-      const query = `[out:json][timeout:10];(node["amenity"~"hospital|clinic"](around:5000,${lat},${lon});way["amenity"~"hospital|clinic"](around:5000,${lat},${lon}););out center;`;
+    // --- Mappls Map Logic ---
+    // The iframe uses the free Mappls COVID/Hospital widget.
+    // To search manually, we update the iframe or open a Mappls deep link.
+    function searchByLocationText() {
+      const location = byId("manualLocationInput").value.trim() || "Hospitals Nearby";
+      byId("mapStatus").innerHTML = `Showing hospitals in <b>${location}</b>`;
       
-      const endpoints = [
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://overpass.openstreetmap.fr/api/interpreter"
-      ];
-
-      let data = null;
-      for (const endpoint of endpoints) {
-        try {
-          const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`);
-          if (res.ok) {
-            data = await res.json();
-            break;
-          }
-        } catch (e) {
-          console.warn(`Mirror failed, trying next...`);
-        }
-      }
-
-      const listContainer = byId("hospitalListContainer");
-      listContainer.innerHTML = "";
-
-      if (!data || !data.elements || data.elements.length === 0) {
-        status.textContent = "Map updated successfully. (Overpass API servers are currently busy, but the map above is active)";
-        listContainer.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 15px;">Google Map embed loaded above successfully.</p>`;
-        return;
-      }
-
-      status.style.display = "none";
-      const limited = data.elements.slice(0, 7);
-
-      limited.forEach((el, i) => {
-        const name = el.tags.name || "Unnamed Medical Facility";
-        const type = el.tags.amenity || 'Hospital';
-        const hLat = el.lat || (el.center ? el.center.lat : lat);
-        const hLon = el.lon || (el.center ? el.center.lon : lon);
-
-        const div = document.createElement("div");
-        div.className = "hospital-item";
-        div.innerHTML = `
-          <div class="hospital-info">
-            <h4>${i+1}. ${name}</h4>
-            <p>${type.charAt(0).toUpperCase() + type.slice(1)} • Within 5km</p>
-          </div>
-          <a href="https://www.google.com/maps/search/?api=1&query=${hLat},${hLon}" target="_blank" class="btn btn-outline btn-sm">
-            <i class="fa-solid fa-directions"></i> Directions
-          </a>
-        `;
-        listContainer.appendChild(div);
-      });
+      // Mappls deep link for a text location
+      const deepLink = `https://mappls.com/hospitals/near/${encodeURIComponent(location)}`;
+      
+      // For the iframe, we can try to set a generic map embed if available,
+      // but the free widget is fixed to categories. We will show a message.
+      byId("mapplsMapIframe").src = `https://maps.Mappls.com/covid-places/embed?category=HSPVCC&q=${encodeURIComponent(location)}`;
+      
+      // Optionally, open in a new tab for the full experience
+      // window.open(deepLink, '_blank');
     }
 
-    function autoFetchGpsAndLoadData() {
-      const status = byId("gpsStatus");
-      status.style.display = "block";
-      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Automatically detecting your GPS location...';
-
+    function searchByGPS() {
+      const btn = byId("gpsSearchButton");
+      const status = byId("mapStatus");
+      
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Locating...';
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Detecting your location... Please allow access.';
+      
       if (!navigator.geolocation) {
-        status.textContent = "Geolocation not supported. Loading default (Bangalore).";
-        loadHospitalsForCoords(12.9716, 77.5946, "Bangalore");
+        status.innerHTML = 'Geolocation is not supported by your browser.';
+        btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
         return;
       }
 
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      };
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          status.innerHTML = `GPS Lock Found! Loading hospitals near your coordinates...`;
-          setTimeout(() => { status.style.display = "none"; }, 2500);
-          loadHospitalsForCoords(lat, lon);
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          
+          status.innerHTML = `📍 Location found (Accuracy: ~${Math.round(position.coords.accuracy)}m). Showing hospitals.`;
+          
+          // Mappls deep link for coordinates
+          const deepLink = `https://mappls.com/hospitals/near/${lat},${lon}`;
+          
+          // Update the iframe to center on coordinates (the free widget may auto-detect)
+          byId("mapplsMapIframe").src = `https://maps.Mappls.com/covid-places/embed?category=HSPVCC&ll=${lat},${lon}`;
+          
+          btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
         },
-        (err) => {
-          status.textContent = "Location access denied/unavailable. Loading default area (Bangalore).";
-          loadHospitalsForCoords(12.9716, 77.5946, "Bangalore");
+        (error) => {
+          status.innerHTML = '❌ Location denied or timed out. Please type a city name manually.';
+          btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Use My Location';
+          console.error("GPS Error:", error);
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        options
       );
     }
 
-    async function performManualSearch() {
-      const queryText = byId("manualLocationInput").value.trim();
-      const status = byId("gpsStatus");
-      if (!queryText) return;
-
-      status.style.display = "block";
-      status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Searching coordinates for "${queryText}"...`;
-
-      try {
-        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}`);
-        const geoData = await geoRes.json();
-        if (!geoData || geoData.length === 0) {
-          status.textContent = "Location not found. Try a broader city name.";
-          return;
-        }
-        const lat = parseFloat(geoData[0].lat);
-        const lon = parseFloat(geoData[0].lon);
-        loadHospitalsForCoords(lat, lon, geoData[0].display_name);
-      } catch (e) {
-        status.textContent = "Error resolving location. Please try again.";
-        console.error(e);
-      }
-    }
-
-    byId("searchManualButton").addEventListener("click", performManualSearch);
+    // --- Event Listeners for Map ---
+    byId("searchManualButton").addEventListener("click", searchByLocationText);
     byId("manualLocationInput").addEventListener("keypress", (e) => {
-      if (e.key === "Enter") performManualSearch();
+      if (e.key === "Enter") searchByLocationText();
     });
+    byId("gpsSearchButton").addEventListener("click", searchByGPS);
 
+    // --- Auto Search from Alert Page ---
     window.autoSearchHospitals = () => {
       document.querySelector('[data-target="view-hospitals"]').click();
-      autoFetchGpsAndLoadData();
+      setTimeout(() => {
+        searchByGPS();
+      }, 300);
     };
   </script>
 </body>
