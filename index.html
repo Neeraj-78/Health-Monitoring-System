@@ -185,7 +185,7 @@
     <!-- VIEW 2: HISTORY & GRAPHS -->
     <div id="view-history" class="view">
       <div class="card" style="margin-bottom: 25px;">
-        <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Vitals Trend (Time-Series)</h2>
+        <h2 style="font-size: 1.2rem; margin-bottom: 20px; color: var(--text-main);">Today's Vitals Trend (Last 30 Readings)</h2>
         <div class="chart-container">
           <canvas id="historyChart"></canvas>
         </div>
@@ -271,7 +271,6 @@
       appId: "1:1090603150131:web:5412c37733158cb741ec46"
     };
 
-    // Your Cloud Database URL
     const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec";
 
     const app = initializeApp(firebaseConfig);
@@ -341,7 +340,6 @@
 
     // --- Core Logic ---
     function startDashboard() {
-      // Firebase Live Listener
       onValue(ref(database, "/readings"), (snapshot) => {
         const data = snapshot.val();
         if (data) updateLiveUI(data);
@@ -390,24 +388,39 @@
         const validRows = rows.filter(r => r && r.Timestamp);
         if (validRows.length === 0) return;
 
-        renderChart(validRows.slice(-30)); // Graph last 30
-        renderHistoryTable(validRows);     // Full table
-        renderAlertTable(validRows);       // Alerts only
+        // Filter for Today's Date
+        const todayString = new Date().toDateString();
+        const todayRows = validRows.filter(r => {
+          const rowDate = new Date(r.Timestamp);
+          return !isNaN(rowDate.getTime()) && rowDate.toDateString() === todayString;
+        });
+
+        // Get last 30 of today's readings for the chart
+        const chartRows = todayRows.slice(-30); 
+
+        renderChart(chartRows);
+        renderHistoryTable(validRows);
+        renderAlertTable(validRows);
       } catch (error) {
         console.error("Fetch error:", error);
       }
     }
 
-    // --- Graph Logic (Time-Series & Gap-Aware) ---
+    // --- Graph Logic ---
     function renderChart(rows) {
       if (typeof Chart === "undefined") return;
       
-      // Map to objects with actual Date objects for the time scale
+      if (rows.length === 0) {
+        if (chartInstance) chartInstance.destroy();
+        // Optionally show a "No data today" message on canvas
+        return; 
+      }
+
       const chartData = rows.map(r => ({
         x: new Date(r.Timestamp),
         hr: Number(r['Heart Rate (BPM)'] || r.hr),
         spo2: Number(r['SpO2 (%)'] || r.spo2)
-      })).filter(d => !isNaN(d.x.getTime())); // Filter invalid dates
+      })).filter(d => !isNaN(d.x.getTime()));
 
       const ctx = byId("historyChart").getContext("2d");
       if (chartInstance) chartInstance.destroy();
@@ -426,7 +439,7 @@
           interaction: { mode: 'index', intersect: false },
           scales: {
             x: {
-              type: 'time', // This creates the gap if data stops!
+              type: 'time',
               time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
               grid: { display: false }
             },
@@ -473,7 +486,6 @@
       alerts.forEach(r => {
         const msg = r['Alert Message'] || r.alertMsg;
         
-        // Determine Alert Parameter (What caused the alert?)
         let param = "Unknown";
         const hr = Number(r['Heart Rate (BPM)'] || r.hr);
         const spo2 = Number(r['SpO2 (%)'] || r.spo2);
@@ -483,7 +495,7 @@
         else if (hr < 60 && hr > 0) param = `Low HR (${hr} bpm)`;
         else if (spo2 < 95 && spo2 > 0) param = `Low SpO2 (${spo2}%)`;
         else if (temp > 37.5) param = `High Temp (${temp}°C)`;
-        else param = msg; // Fallback
+        else param = msg;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -495,18 +507,15 @@
       });
     }
 
-    // --- Hospital Auto-Search (From Alert Page) ---
+    // --- Hospital Auto-Search ---
     window.autoSearchHospitals = () => {
-      // Switch to Hospitals tab
       document.querySelector('[data-target="view-hospitals"]').click();
-      
-      // Wait for tab animation, then trigger search
       setTimeout(() => {
         byId("findHospitalsButton").click();
       }, 300);
     };
 
-    // --- Map & Hospital Logic ---
+    // --- Map & Hospital Logic (Fixing 502 & limiting to 7) ---
     byId("findHospitalsButton").addEventListener("click", () => {
       const status = byId("mapStatus");
       const btn = byId("findHospitalsButton");
@@ -525,19 +534,35 @@
         status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching hospitals within 5km...';
 
         try {
+          // Using a more reliable mirror (kumi.systems) to avoid 502 Bad Gateway
+          const endpoint = `https://overpass.kumi.systems/api/interpreter`;
           const query = `[out:json];(nwr(around:5000,${userLat},${userLon})["amenity"~"hospital|clinic"];);out center;`;
-          const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+          
+          let res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`);
+          
+          // Fallback to main server if Kumi fails
+          if (!res.ok) {
+             res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+          }
+          
+          if (!res.ok) throw new Error("Map server busy (502)");
+          
           const data = await res.json();
           
-          if (data.elements.length === 0) {
+          if (!data.elements || data.elements.length === 0) {
             status.textContent = "No hospitals found nearby.";
             return;
           }
-          status.textContent = `Found ${data.elements.length} medical facilities nearby.`;
-          renderMap(data.elements);
-          renderHospitalList(data.elements);
+          
+          // Limit to exactly 7 hospitals
+          const limitedElements = data.elements.slice(0, 7);
+          
+          status.textContent = `Found ${limitedElements.length} medical facilities nearby.`;
+          renderMap(limitedElements);
+          renderHospitalList(limitedElements);
         } catch (e) {
-          status.textContent = "Search failed. Server busy.";
+          status.textContent = "Search failed. Map server is currently overloaded. Please try again in 10 seconds.";
+          console.error(e);
         } finally {
           btn.disabled = false;
         }
@@ -550,23 +575,30 @@
     function renderMap(elements) {
       byId("map").style.display = "block";
       if (!mapInstance) {
-        mapInstance = L.map('map').setView([userLat, userLon], 13);
+        mapInstance = L.map('map').setView([userLat, userLon], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
       } else {
         mapInstance.eachLayer(layer => { if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer); });
-        mapInstance.setView([userLat, userLon], 13);
       }
       
+      // User Marker
       L.circleMarker([userLat, userLon], { radius: 8, color: '#fff', weight: 2, fillColor: '#3498db', fillOpacity: 1 })
         .addTo(mapInstance).bindPopup("<b>Your Location</b>").openPopup();
 
       const hIcon = L.divIcon({ html: '<div style="font-size:20px;background:#fff;border-radius:50%;padding:4px;border:2px solid #ef4444;">🏥</div>', className:'', iconSize:[32,32] });
       
+      const bounds = L.latLngBounds([[userLat, userLon]]);
+
       elements.forEach(el => {
         const lat = el.lat || el.center.lat;
         const lon = el.lon || el.center.lon;
+        bounds.extend([lat, lon]);
+        
         L.marker([lat, lon], {icon: hIcon}).addTo(mapInstance).bindPopup(el.tags.name || "Hospital");
       });
+      
+      // Auto zoom to fit user and all 7 hospitals
+      mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
       setTimeout(() => mapInstance.invalidateSize(), 200);
     }
 
