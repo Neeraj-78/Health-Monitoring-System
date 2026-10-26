@@ -15,10 +15,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
-  <!-- Leaflet map -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
   <style>
     :root {
       --primary: #4f46e5;
@@ -89,31 +85,22 @@
     .btn-danger:hover { background: #dc2626; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
     .btn-outline:hover { background: #f1f5f9; }
-    .btn-sm { padding: 8px 12px; font-size: 0.85rem; }
 
-    /* Map & Chart */
-    .chart-container { position: relative; height: 400px; width: 100%; }
-    #map { height: 500px; width: 100%; border-radius: 12px; margin-top: 20px; display: none; z-index: 1; border: 1px solid var(--border); }
-    
-    /* Hospital List */
-    .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
-    .hospital-item:last-child { border-bottom: none; }
-    .hospital-info h4 { font-size: 1.05rem; margin-bottom: 4px; }
-    .hospital-info p { font-size: 0.9rem; color: var(--text-muted); }
+    /* Map Snippet Container */
+    .map-frame-container { width: 100%; height: 520px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; }
+    .map-frame-container iframe { width: 100%; height: 100%; border: none; }
 
     /* Login */
     .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
     .login-box { background: var(--card-bg); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
     .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
     .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 25px; }
-    .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; transition: 0.2s; }
-    .login-box input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+    .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; }
     .login-box button { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
     .error-text { color: var(--red); font-size: 0.9rem; margin-top: 15px; text-align: center; }
     
     .hidden { display: none !important; }
 
-    /* Mobile */
     @media (max-width: 768px) {
       body { flex-direction: column; }
       .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; overflow-x: auto; padding: 10px; }
@@ -240,21 +227,21 @@
       </div>
     </div>
 
-    <!-- VIEW 4: NEARBY HOSPITALS -->
+    <!-- VIEW 4: NEARBY HOSPITALS (EMBEDDED GOOGLE MAP SNIPPET) -->
     <div id="view-hospitals" class="view">
       <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
-          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Medical Facilities</h2>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="manualLocationInput" placeholder="Enter city or area (e.g. Bangalore)" style="padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
-            <button class="btn btn-outline" id="searchManualButton" type="button"><i class="fa-solid fa-search"></i> Search Area</button>
-            <button class="btn btn-primary" id="findHospitalsButton" type="button"><i class="fa-solid fa-crosshairs"></i> Use GPS</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals Search</h2>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 450px;">
+            <input type="text" id="manualLocationInput" placeholder="Enter city or area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+            <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search Area</button>
           </div>
         </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">Type your city or area above to automatically load local hospitals on Google Maps.</p>
         
-        <div id="mapStatus" style="padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); display: none;"></div>
-        <div id="map"></div>
-        <div id="hospitalListContainer" style="margin-top: 20px;"></div>
+        <div class="map-frame-container">
+          <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals%20in%20Bangalore&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
+        </div>
       </div>
     </div>
 
@@ -285,8 +272,6 @@
     await signOut(auth);
     
     let chartInstance = null;
-    let mapInstance = null;
-    let userLat = null, userLon = null;
     let dashboardStarted = false;
 
     const byId = (id) => document.getElementById(id);
@@ -301,9 +286,6 @@
         byId(targetId).classList.add('active');
         e.currentTarget.classList.add('active');
 
-        if (targetId === 'view-hospitals' && mapInstance) {
-          setTimeout(() => mapInstance.invalidateSize(), 100);
-        }
         if (targetId === 'view-history' && chartInstance) {
           setTimeout(() => chartInstance.resize(), 100);
         }
@@ -507,177 +489,22 @@
       });
     }
 
-    // --- Hospital Auto-Search ---
+    // --- Search Logic for Google Maps Embed Snippet ---
+    function performMapSearch() {
+      const location = byId("manualLocationInput").value.trim() || "Bangalore";
+      const searchUrl = `https://maps.google.com/maps?q=hospitals%20in%20${encodeURIComponent(location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+      byId("googleMapIframe").src = searchUrl;
+    }
+
+    byId("searchManualButton").addEventListener("click", performMapSearch);
+    byId("manualLocationInput").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") performMapSearch();
+    });
+
     window.autoSearchHospitals = () => {
       document.querySelector('[data-target="view-hospitals"]').click();
-      setTimeout(() => {
-        byId("findHospitalsButton").click();
-      }, 300);
+      performMapSearch();
     };
-
-    // --- Manual Location Search Logic ---
-    byId("searchManualButton").addEventListener("click", async () => {
-      const queryText = byId("manualLocationInput").value.trim();
-      const status = byId("mapStatus");
-      
-      if (!queryText) {
-        status.style.display = "block";
-        status.textContent = "Please enter a city or area name first.";
-        return;
-      }
-
-      status.style.display = "block";
-      status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Searching coordinates for "${queryText}"...`;
-
-      try {
-        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}`);
-        const geoData = await geoRes.json();
-
-        if (!geoData || geoData.length === 0) {
-          status.textContent = "Location not found. Try a broader city name.";
-          return;
-        }
-
-        userLat = parseFloat(geoData[0].lat);
-        userLon = parseFloat(geoData[0].lon);
-
-        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Location set! Searching nearby hospitals...';
-
-        const query = `[out:json][timeout:10];(node["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon});way["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon}););out center;`;
-        
-        let res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-        if (!res.ok) {
-           res = await fetch(`https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`);
-        }
-        
-        if (!res.ok) throw new Error("Map server busy");
-        
-        const data = await res.json();
-        
-        if (!data.elements || data.elements.length === 0) {
-          status.textContent = "No hospitals found within 5km of this location.";
-          return;
-        }
-        
-        const limitedElements = data.elements.slice(0, 7);
-        status.textContent = `Found ${limitedElements.length} medical facilities near ${geoData[0].display_name}.`;
-        renderMap(limitedElements);
-        renderHospitalList(limitedElements);
-
-      } catch (e) {
-        status.textContent = "Error fetching manual location data. Please try again.";
-        console.error(e);
-      }
-    });
-
-    // --- Map & Hospital GPS Logic ---
-    byId("findHospitalsButton").addEventListener("click", () => {
-      const status = byId("mapStatus");
-      const btn = byId("findHospitalsButton");
-      
-      status.style.display = "block";
-      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching your current location...';
-      btn.disabled = true;
-
-      if (!navigator.geolocation) {
-        status.textContent = "Geolocation is not supported by your browser.";
-        btn.disabled = false; 
-        return;
-      }
-
-      const geoOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      };
-
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        userLat = pos.coords.latitude; 
-        userLon = pos.coords.longitude;
-        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Location found! Searching nearby hospitals...';
-
-        try {
-          const query = `[out:json][timeout:10];(node["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon});way["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon}););out center;`;
-          
-          let res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-          
-          if (!res.ok) {
-             res = await fetch(`https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`);
-          }
-          
-          if (!res.ok) throw new Error("Map server busy");
-          
-          const data = await res.json();
-          
-          if (!data.elements || data.elements.length === 0) {
-            status.textContent = "No hospitals found within a 5km radius.";
-            btn.disabled = false;
-            return;
-          }
-          
-          const limitedElements = data.elements.slice(0, 7);
-          
-          status.textContent = `Found ${limitedElements.length} medical facilities nearby.`;
-          renderMap(limitedElements);
-          renderHospitalList(limitedElements);
-        } catch (e) {
-          status.textContent = "Search took too long or server is overloaded. Please try again.";
-          console.error(e);
-        } finally {
-          btn.disabled = false;
-        }
-      }, (err) => {
-        let errorMsg = "Unable to retrieve your location.";
-        if (err.code === err.PERMISSION_DENIED) {
-          errorMsg = "Location permission denied. Please allow location access in your browser settings.";
-        } else if (err.code === err.TIMEOUT) {
-          errorMsg = "Location request timed out. Please check your GPS/Network connection.";
-        }
-        status.textContent = errorMsg;
-        btn.disabled = false;
-      }, geoOptions);
-    });
-
-    function renderMap(elements) {
-      byId("map").style.display = "block";
-      if (!mapInstance) {
-        mapInstance = L.map('map').setView([userLat, userLon], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
-      } else {
-        mapInstance.eachLayer(layer => { if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer); });
-      }
-      
-      L.circleMarker([userLat, userLon], { radius: 8, color: '#fff', weight: 2, fillColor: '#3498db', fillOpacity: 1 })
-        .addTo(mapInstance).bindPopup("<b>Your Location</b>").openPopup();
-
-      const hIcon = L.divIcon({ html: '<div style="font-size:20px;background:#fff;border-radius:50%;padding:4px;border:2px solid #ef4444;">🏥</div>', className:'', iconSize:[32,32] });
-      
-      const bounds = L.latLngBounds([[userLat, userLon]]);
-
-      elements.forEach(el => {
-        const lat = el.lat || (el.center ? el.center.lat : null);
-        const lon = el.lon || (el.center ? el.center.lon : null);
-        if(lat && lon) {
-          bounds.extend([lat, lon]);
-          L.marker([lat, lon], {icon: hIcon}).addTo(mapInstance).bindPopup(el.tags.name || "Hospital");
-        }
-      });
-      
-      mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-      setTimeout(() => mapInstance.invalidateSize(), 200);
-    }
-
-    function renderHospitalList(elements) {
-      const list = byId("hospitalListContainer");
-      list.innerHTML = "";
-      elements.forEach((el, i) => {
-        const name = el.tags.name || "Unnamed Medical Facility";
-        const div = document.createElement("div");
-        div.className = "hospital-item";
-        div.innerHTML = `<div class="hospital-info"><h4>${i+1}. ${name}</h4><p>${el.tags.amenity || 'Hospital'}</p></div>`;
-        list.appendChild(div);
-      });
-    }
   </script>
 </body>
 </html>
