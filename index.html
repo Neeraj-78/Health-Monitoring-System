@@ -259,7 +259,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, inMemoryPersistence, signOut} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, inMemoryPersistence, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
@@ -388,14 +388,12 @@
         const validRows = rows.filter(r => r && r.Timestamp);
         if (validRows.length === 0) return;
 
-        // Filter for Today's Date
         const todayString = new Date().toDateString();
         const todayRows = validRows.filter(r => {
           const rowDate = new Date(r.Timestamp);
           return !isNaN(rowDate.getTime()) && rowDate.toDateString() === todayString;
         });
 
-        // Get last 30 of today's readings for the chart
         const chartRows = todayRows.slice(-30); 
 
         renderChart(chartRows);
@@ -412,7 +410,6 @@
       
       if (rows.length === 0) {
         if (chartInstance) chartInstance.destroy();
-        // Optionally show a "No data today" message on canvas
         return; 
       }
 
@@ -491,10 +488,9 @@
         const spo2 = Number(r['SpO2 (%)'] || r.spo2);
         const temp = Number(r['Temp (°C)'] || r.temp);
         
-        if (hr > 100) param = `High HR (${hr} bpm)`;
-        else if (hr < 60 && hr > 0) param = `Low HR (${hr} bpm)`;
-        else if (spo2 < 95 && spo2 > 0) param = `Low SpO2 (${spo2}%)`;
-        else if (temp > 37.5) param = `High Temp (${temp}°C)`;
+        if (hr > 120) param = `High HR (${hr} bpm)`;
+        else if (spo2 < 90 && spo2 > 0) param = `Low SpO2 (${spo2}%)`;
+        else if (temp > 38.0) param = `High Temp (${temp}°C)`;
         else param = msg;
 
         const tr = document.createElement("tr");
@@ -515,61 +511,72 @@
       }, 300);
     };
 
-    // --- Map & Hospital Logic (Fixing 502 & limiting to 7) ---
+    // --- Map & Hospital Logic (Optimized) ---
     byId("findHospitalsButton").addEventListener("click", () => {
       const status = byId("mapStatus");
       const btn = byId("findHospitalsButton");
       
       status.style.display = "block";
-      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Getting location... Allow access if prompted.';
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Fetching your current location...';
       btn.disabled = true;
 
       if (!navigator.geolocation) {
-        status.textContent = "Geolocation not supported by this browser.";
-        btn.disabled = false; return;
+        status.textContent = "Geolocation is not supported by your browser.";
+        btn.disabled = false; 
+        return;
       }
 
+      const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      };
+
       navigator.geolocation.getCurrentPosition(async (pos) => {
-        userLat = pos.coords.latitude; userLon = pos.coords.longitude;
-        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching hospitals within 5km...';
+        userLat = pos.coords.latitude; 
+        userLon = pos.coords.longitude;
+        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Location found! Searching nearby hospitals...';
 
         try {
-          // Using a more reliable mirror (kumi.systems) to avoid 502 Bad Gateway
-          const endpoint = `https://overpass.kumi.systems/api/interpreter`;
-          const query = `[out:json];(nwr(around:5000,${userLat},${userLon})["amenity"~"hospital|clinic"];);out center;`;
+          const query = `[out:json][timeout:10];(node["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon});way["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon}););out center;`;
           
-          let res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`);
+          let res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
           
-          // Fallback to main server if Kumi fails
           if (!res.ok) {
-             res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+             res = await fetch(`https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`);
           }
           
-          if (!res.ok) throw new Error("Map server busy (502)");
+          if (!res.ok) throw new Error("Map server busy");
           
           const data = await res.json();
           
           if (!data.elements || data.elements.length === 0) {
-            status.textContent = "No hospitals found nearby.";
+            status.textContent = "No hospitals found within a 5km radius.";
+            btn.disabled = false;
             return;
           }
           
-          // Limit to exactly 7 hospitals
           const limitedElements = data.elements.slice(0, 7);
           
           status.textContent = `Found ${limitedElements.length} medical facilities nearby.`;
           renderMap(limitedElements);
           renderHospitalList(limitedElements);
         } catch (e) {
-          status.textContent = "Search failed. Map server is currently overloaded. Please try again in 10 seconds.";
+          status.textContent = "Search took too long or server is overloaded. Please try again.";
           console.error(e);
         } finally {
           btn.disabled = false;
         }
       }, (err) => {
-        status.textContent = "Location error: " + err.message;
+        let errorMsg = "Unable to retrieve your location.";
+        if (err.code === err.PERMISSION_DENIED) {
+          errorMsg = "Location permission denied. Please allow location access in your browser settings.";
+        } else if (err.code === err.TIMEOUT) {
+          errorMsg = "Location request timed out. Please check your GPS/Network connection.";
+        }
+        status.textContent = errorMsg;
         btn.disabled = false;
-      });
+      }, geoOptions);
     });
 
     function renderMap(elements) {
@@ -581,7 +588,6 @@
         mapInstance.eachLayer(layer => { if (layer instanceof L.Marker || layer instanceof L.CircleMarker) mapInstance.removeLayer(layer); });
       }
       
-      // User Marker
       L.circleMarker([userLat, userLon], { radius: 8, color: '#fff', weight: 2, fillColor: '#3498db', fillOpacity: 1 })
         .addTo(mapInstance).bindPopup("<b>Your Location</b>").openPopup();
 
@@ -590,14 +596,14 @@
       const bounds = L.latLngBounds([[userLat, userLon]]);
 
       elements.forEach(el => {
-        const lat = el.lat || el.center.lat;
-        const lon = el.lon || el.center.lon;
-        bounds.extend([lat, lon]);
-        
-        L.marker([lat, lon], {icon: hIcon}).addTo(mapInstance).bindPopup(el.tags.name || "Hospital");
+        const lat = el.lat || (el.center ? el.center.lat : null);
+        const lon = el.lon || (el.center ? el.center.lon : null);
+        if(lat && lon) {
+          bounds.extend([lat, lon]);
+          L.marker([lat, lon], {icon: hIcon}).addTo(mapInstance).bindPopup(el.tags.name || "Hospital");
+        }
       });
       
-      // Auto zoom to fit user and all 7 hospitals
       mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
       setTimeout(() => mapInstance.invalidateSize(), 200);
     }
