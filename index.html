@@ -245,7 +245,11 @@
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
           <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Medical Facilities</h2>
-          <button class="btn btn-primary" id="findHospitalsButton" type="button"><i class="fa-solid fa-crosshairs"></i> Search Near Me</button>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="manualLocationInput" placeholder="Enter city or area (e.g. Bangalore)" style="padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+            <button class="btn btn-outline" id="searchManualButton" type="button"><i class="fa-solid fa-search"></i> Search Area</button>
+            <button class="btn btn-primary" id="findHospitalsButton" type="button"><i class="fa-solid fa-crosshairs"></i> Use GPS</button>
+          </div>
         </div>
         
         <div id="mapStatus" style="padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); display: none;"></div>
@@ -511,7 +515,62 @@
       }, 300);
     };
 
-    // --- Map & Hospital Logic (Optimized) ---
+    // --- Manual Location Search Logic ---
+    byId("searchManualButton").addEventListener("click", async () => {
+      const queryText = byId("manualLocationInput").value.trim();
+      const status = byId("mapStatus");
+      
+      if (!queryText) {
+        status.style.display = "block";
+        status.textContent = "Please enter a city or area name first.";
+        return;
+      }
+
+      status.style.display = "block";
+      status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Searching coordinates for "${queryText}"...`;
+
+      try {
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}`);
+        const geoData = await geoRes.json();
+
+        if (!geoData || geoData.length === 0) {
+          status.textContent = "Location not found. Try a broader city name.";
+          return;
+        }
+
+        userLat = parseFloat(geoData[0].lat);
+        userLon = parseFloat(geoData[0].lon);
+
+        status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Location set! Searching nearby hospitals...';
+
+        const query = `[out:json][timeout:10];(node["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon});way["amenity"~"hospital|clinic"](around:5000,${userLat},${userLon}););out center;`;
+        
+        let res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+        if (!res.ok) {
+           res = await fetch(`https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`);
+        }
+        
+        if (!res.ok) throw new Error("Map server busy");
+        
+        const data = await res.json();
+        
+        if (!data.elements || data.elements.length === 0) {
+          status.textContent = "No hospitals found within 5km of this location.";
+          return;
+        }
+        
+        const limitedElements = data.elements.slice(0, 7);
+        status.textContent = `Found ${limitedElements.length} medical facilities near ${geoData[0].display_name}.`;
+        renderMap(limitedElements);
+        renderHospitalList(limitedElements);
+
+      } catch (e) {
+        status.textContent = "Error fetching manual location data. Please try again.";
+        console.error(e);
+      }
+    });
+
+    // --- Map & Hospital GPS Logic ---
     byId("findHospitalsButton").addEventListener("click", () => {
       const status = byId("mapStatus");
       const btn = byId("findHospitalsButton");
