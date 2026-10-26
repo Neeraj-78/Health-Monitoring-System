@@ -280,6 +280,7 @@
     .hospital-info p { font-size: 0.9rem; color: var(--ink-muted); }
     .hospital-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .muted-center { color: var(--ink-muted); text-align: center; padding: 20px; }
+    .list-note { color: var(--ink-muted); font-size: 0.85rem; padding-top: 12px; }
 
     /* ---------- Login ---------- */
     .login-overlay {
@@ -825,6 +826,7 @@
     let osmMap = null;
     let hospitalLayer = null;
     let searchMarker = null;
+    let accuracyCircle = null;
     let hospitalMarkers = [];
 
     function ensureMap() {
@@ -851,14 +853,25 @@
       return wrap;
     }
 
-    function plotSearchCenter(lat, lon, label) {
+    function plotSearchCenter(lat, lon, label, accuracy = null) {
       ensureMap();
       if (!osmMap) return;
-      osmMap.setView([lat, lon], 14);
+      osmMap.setView([lat, lon], 15);
+
       if (searchMarker) searchMarker.remove();
+      if (accuracyCircle) accuracyCircle.remove();
+
+      if (accuracy) {
+        accuracyCircle = L.circle([lat, lon], {
+          radius: accuracy, color: "#2f5bd3", fillColor: "#2f5bd3", fillOpacity: 0.1, weight: 1
+        }).addTo(osmMap);
+      }
+
       searchMarker = L.circleMarker([lat, lon], {
         radius: 9, color: "#2f5bd3", fillColor: "#2f5bd3", fillOpacity: 0.9, weight: 3
-      }).addTo(osmMap).bindPopup(popupContent(label, ""));
+      }).addTo(osmMap).bindPopup(
+        popupContent(label, accuracy ? `Accuracy about ${Math.round(accuracy)} m` : "")
+      );
     }
 
     function plotHospitals(list) {
@@ -886,6 +899,46 @@
         s.append(icon, " ");
       }
       s.append(message);
+    }
+
+    function getPosition(options) {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+    }
+
+    async function locateAndSearch() {
+      if (!navigator.geolocation) {
+        useDefaultLocation("This browser does not support location.");
+        return;
+      }
+      setGps("Detecting your location...", true);
+      try {
+        let pos;
+        try {
+          // Precise GPS fix. Laptops can take 10–20 seconds to get one.
+          pos = await getPosition({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+        } catch (err) {
+          if (err.code === err.PERMISSION_DENIED) throw err;
+          // The precise fix timed out. Try a quicker, coarser estimate.
+          setGps("Getting a quicker location estimate...", true);
+          pos = await getPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+        }
+        const { latitude, longitude, accuracy } = pos.coords;
+        await searchAt(latitude, longitude, "your location", accuracy);
+      } catch (err) {
+        if (err.code === err.PERMISSION_DENIED) {
+          useDefaultLocation("Location permission is blocked for this site.");
+        } else {
+          useDefaultLocation("Could not get your location.");
+        }
+      }
+    }
+
+    function useDefaultLocation(reason) {
+      const d = CONFIG.defaultLocation;
+      setGps(`${reason} Using ${d.name} as the default.`);
+      searchAt(d.lat, d.lon, d.name);
     }
 
     async function geocode(query) {
@@ -952,8 +1005,6 @@
       const c = $("hospitalListContainer");
       c.textContent = "";
 
-      if (list.length === 0) return;
-
       list.forEach((h, i) => {
         const row = document.createElement("div");
         row.className = "hospital-item";
@@ -991,53 +1042,32 @@
       });
 
       const note = document.createElement("p");
-      note.className = "muted-center";
-      note.style.textAlign = "left";
-      note.style.padding = "12px 0 0";
+      note.className = "list-note";
       note.textContent = "Map data © OpenStreetMap contributors. Hospital listings may be incomplete.";
       c.appendChild(note);
     }
 
-    async function searchAt(lat, lon, label) {
+    async function searchAt(lat, lon, label, accuracy = null) {
       setGps(`Finding hospitals near ${label}...`, true);
-      plotSearchCenter(lat, lon, label);
+      plotSearchCenter(lat, lon, label, accuracy);
       $("hospitalListContainer").textContent = "";
 
       try {
         const data = await fetchOverpass(buildOverpassQuery(lat, lon));
         const hospitals = parseHospitals(data, lat, lon);
         plotHospitals(hospitals);
-        renderHospitalList(hospitals);
 
         if (hospitals.length === 0) {
           setGps(`No hospitals listed within ${CONFIG.radiusMeters / 1000} km of ${label}. Try a wider search.`);
           $("hospitalListContainer").innerHTML = `<p class="muted-center">No hospitals found nearby.</p>`;
         } else {
+          renderHospitalList(hospitals);
           setGps(`Showing ${hospitals.length} hospitals near ${label}, closest first.`);
         }
       } catch (err) {
         console.error("Hospital search failed:", err);
         setGps("Could not load hospitals. The map servers may be busy. Try again in a minute.");
       }
-    }
-
-    function useDefaultLocation(reason) {
-      const d = CONFIG.defaultLocation;
-      setGps(`${reason} Using ${d.name} as the default.`);
-      searchAt(d.lat, d.lon, d.name);
-    }
-
-    function locateAndSearch() {
-      if (!navigator.geolocation) {
-        useDefaultLocation("Location is not supported in this browser.");
-        return;
-      }
-      setGps("Detecting your location...", true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => searchAt(pos.coords.latitude, pos.coords.longitude, "your location"),
-        () => useDefaultLocation("Location access was denied."),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-      );
     }
 
     $("searchForm").addEventListener("submit", async (e) => {
