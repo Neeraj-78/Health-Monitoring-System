@@ -15,9 +15,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
-  <!-- Mappls Map SDK (Replace YOUR_MAPPLS_API_KEY with your actual key) -->
-  <script src="https://apis.mappls.com/advancedmaps/api/zgjnsoglchriazqotltwduwtfnkadkbtnnbe/map_sdk?layer=vector&v=3.0"></script>
-
   <style>
     :root {
       --primary: #4f46e5;
@@ -88,12 +85,12 @@
     .btn-danger:hover { background: #dc2626; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
     .btn-outline:hover { background: #f1f5f9; }
-    .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
 
-    /* Mappls Container */
-    #mappls-map { width: 100%; height: 450px; border-radius: 12px; border: 1px solid var(--border); margin-top: 15px; }
+    /* Map Container */
+    .map-frame-container { width: 100%; height: 500px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-top: 15px; }
+    .map-frame-container iframe { width: 100%; height: 100%; border: none; }
 
-    /* Login */
+    /* Login Overlay */
     .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
     .login-box { background: var(--card-bg); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
     .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
@@ -116,13 +113,13 @@
 </head>
 <body>
 
-  <!-- Login Overlay -->
+  <!-- Login Overlay (with autocomplete attributes fixed) -->
   <div id="loginOverlay" class="login-overlay">
     <form class="login-box" id="loginForm">
       <h2>Welcome Back</h2>
       <p>Sign in to your health dashboard</p>
-      <input type="email" id="email" placeholder="Email Address" required>
-      <input type="password" id="password" placeholder="Password" required>
+      <input type="email" id="email" placeholder="Email Address" autocomplete="email" required>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
       <button type="submit" id="loginButton">Sign In</button>
       <p id="loginError" class="error-text"></p>
     </form>
@@ -137,7 +134,7 @@
       <button class="nav-btn active" data-target="view-dashboard"><i class="fa-solid fa-chart-line"></i> Live Dashboard</button>
       <button class="nav-btn" data-target="view-history"><i class="fa-solid fa-clock-rotate-left"></i> History & Graphs</button>
       <button class="nav-btn" data-target="view-alerts"><i class="fa-solid fa-triangle-exclamation"></i> Alert History</button>
-      <button class="nav-btn" data-target="view-hospitals"><i class="fa-solid fa-hospital"></i> Nearby Hospitals (Mappls)</button>
+      <button class="nav-btn" data-target="view-hospitals"><i class="fa-solid fa-hospital"></i> Nearby Hospitals</button>
     </div>
   </nav>
 
@@ -230,20 +227,21 @@
       </div>
     </div>
 
-    <!-- VIEW 4: NEARBY HOSPITALS (MAPPLS SDK INTEGRATION) -->
+    <!-- VIEW 4: NEARBY HOSPITALS (AUTO-GPS & SEARCH) -->
     <div id="view-hospitals" class="view">
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals (Mappls Map)</h2>
+          <h2 style="font-size: 1.2rem; color: var(--text-main);">📍 Nearby Hospitals Search</h2>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; max-width: 450px;">
-            <input type="text" id="manualLocationInput" placeholder="Search area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+            <input type="text" id="manualLocationInput" placeholder="Enter city or area (e.g. Bangalore)" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
             <button class="btn btn-primary" id="searchManualButton" type="button"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
           </div>
         </div>
         <div id="gpsStatus" style="font-size: 0.9rem; color: var(--primary); font-weight: 500; margin-bottom: 10px; display: none;"></div>
         
-        <!-- Mappls Map Element -->
-        <div id="mappls-map"></div>
+        <div class="map-frame-container">
+          <iframe id="googleMapIframe" src="https://maps.google.com/maps?q=hospitals%20in%20Bangalore&t=&z=13&ie=UTF8&iwloc=&output=embed" allowfullscreen loading="lazy"></iframe>
+        </div>
       </div>
     </div>
 
@@ -252,7 +250,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, setPersistence, inMemoryPersistence, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
@@ -270,13 +268,8 @@
     const database = getDatabase(app);
     const auth = getAuth(app);
     
-    await setPersistence(auth, inMemoryPersistence);
-    await signOut(auth);
-    
     let chartInstance = null;
     let dashboardStarted = false;
-    let mapplsMap = null;
-    let mapInitialized = false;
 
     const byId = (id) => document.getElementById(id);
 
@@ -291,13 +284,7 @@
         e.currentTarget.classList.add('active');
 
         if (targetId === 'view-hospitals') {
-          setTimeout(() => {
-            if (!mapInitialized) {
-              initMapplsWithGps();
-            } else if (mapplsMap) {
-              mapplsMap.resize();
-            }
-          }, 200);
+          autoFetchGpsAndLoadMap();
         }
         if (targetId === 'view-history' && chartInstance) {
           setTimeout(() => chartInstance.resize(), 100);
@@ -305,7 +292,7 @@
       });
     });
 
-    // --- Auth ---
+    // --- Auth (Fixed login state persistence and working sign-in) ---
     byId("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = byId("loginButton");
@@ -393,4 +380,165 @@
           return !isNaN(rowDate.getTime()) && rowDate.toDateString() === todayString;
         });
 
-        const chartRows = todayRows.slice(-30);
+        const chartRows = todayRows.slice(-30); 
+
+        renderChart(chartRows);
+        renderHistoryTable(validRows);
+        renderAlertTable(validRows);
+      } catch (error) {
+        console.error("Fetch error:", error);
+      }
+    }
+
+    // --- Graph Logic ---
+    function renderChart(rows) {
+      if (typeof Chart === "undefined") return;
+      
+      if (rows.length === 0) {
+        if (chartInstance) chartInstance.destroy();
+        return; 
+      }
+
+      const chartData = rows.map(r => ({
+        x: new Date(r.Timestamp),
+        hr: Number(r['Heart Rate (BPM)'] || r.hr),
+        spo2: Number(r['SpO2 (%)'] || r.spo2)
+      })).filter(d => !isNaN(d.x.getTime()));
+
+      const ctx = byId("historyChart").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+      
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          datasets: [
+            { label: "Heart Rate (bpm)", data: chartData.map(d => ({x: d.x, y: d.hr})), borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)", tension: 0.3, fill: true },
+            { label: "SpO₂ (%)", data: chartData.map(d => ({x: d.x, y: d.spo2})), borderColor: "#4f46e5", backgroundColor: "rgba(79, 70, 229, 0.1)", tension: 0.3, fill: true }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time',
+              time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+              grid: { display: false }
+            },
+            y: { beginAtZero: false }
+          }
+        }
+      });
+    }
+
+    // --- Tables Logic ---
+    function renderHistoryTable(rows) {
+      const tbody = byId("historyTableBody");
+      tbody.innerHTML = "";
+      
+      [...rows].reverse().forEach(r => {
+        const alertMsg = r['Alert Message'] || r.alertMsg || 'Normal';
+        const isAlert = alertMsg.toLowerCase() !== 'normal';
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${new Date(r.Timestamp).toLocaleString()}</td>
+          <td>${r['Heart Rate (BPM)'] || r.hr || '--'} bpm</td>
+          <td>${r['SpO2 (%)'] || r.spo2 || '--'}%</td>
+          <td>${r['Temp (°C)'] || r.temp || '--'} °C</td>
+          <td style="color:${isAlert ? 'var(--red)' : 'var(--green)'}; font-weight:600;">${alertMsg}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAlertTable(rows) {
+      const tbody = byId("alertTableBody");
+      tbody.innerHTML = "";
+      
+      const alerts = rows.filter(r => {
+        const msg = String(r['Alert Message'] || r.alertMsg || '').trim();
+        return msg && msg.toLowerCase() !== 'normal';
+      }).reverse();
+
+      if (alerts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--green); font-weight:600;">No alerts recorded.</td></tr>`;
+        return;
+      }
+
+      alerts.forEach(r => {
+        const msg = r['Alert Message'] || r.alertMsg;
+        
+        let param = "Unknown";
+        const hr = Number(r['Heart Rate (BPM)'] || r.hr);
+        const spo2 = Number(r['SpO2 (%)'] || r.spo2);
+        const temp = Number(r['Temp (°C)'] || r.temp);
+        
+        if (hr > 120) param = `High HR (${hr} bpm)`;
+        else if (spo2 < 90 && spo2 > 0) param = `Low SpO2 (${spo2}%)`;
+        else if (temp > 38.0) param = `High Temp (${temp}°C)`;
+        else param = msg;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${new Date(r.Timestamp).toLocaleString()}</td>
+          <td style="color: var(--red); font-weight: 600;">${msg}</td>
+          <td>${param}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- Automatic GPS & Search Logic for Map Embed ---
+    function updateMapEmbed(searchQuery) {
+      const searchUrl = `https://maps.google.com/maps?q=${encodeURIComponent(searchQuery)}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
+      byId("googleMapIframe").src = searchUrl;
+    }
+
+    function performTextSearch() {
+      const locationText = byId("manualLocationInput").value.trim() || "Bangalore";
+      const status = byId("gpsStatus");
+      status.style.display = "block";
+      status.textContent = `Showing hospitals near "${locationText}"`;
+      updateMapEmbed(`hospitals in ${locationText}`);
+    }
+
+    function autoFetchGpsAndLoadMap() {
+      const status = byId("gpsStatus");
+      status.style.display = "block";
+      status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Automatically detecting your GPS location...';
+
+      if (!navigator.geolocation) {
+        status.textContent = "Geolocation not supported. Showing Bangalore.";
+        updateMapEmbed("hospitals in Bangalore");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          status.innerHTML = `Location detected (${lat.toFixed(4)}, ${lon.toFixed(4)}). Loading nearby hospitals...`;
+          setTimeout(() => { status.style.display = "none"; }, 3000);
+          updateMapEmbed(`hospitals near ${lat},${lon}`);
+        },
+        (err) => {
+          status.textContent = "Location access denied. Showing default area (Bangalore).";
+          updateMapEmbed("hospitals in Bangalore");
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
+
+    byId("searchManualButton").addEventListener("click", performTextSearch);
+    byId("manualLocationInput").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") performTextSearch();
+    });
+
+    window.autoSearchHospitals = () => {
+      document.querySelector('[data-target="view-hospitals"]').click();
+      autoFetchGpsAndLoadMap();
+    };
+  </script>
+</body>
+</html>
