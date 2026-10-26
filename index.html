@@ -29,17 +29,28 @@
     * { box-sizing: border-box; }
     body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--text); }
     .container { max-width: 1200px; margin: auto; }
+    
     header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 22px; }
     h1 { font-size: clamp(1.45rem, 3vw, 2rem); margin: 0; color: #20364d; }
     h2 { margin: 0 0 14px; font-size: 1.12rem; color: #536575; border-bottom: 1px solid var(--border); padding-bottom: 11px; }
     h3 { margin-top: 0; }
-    .card, .section { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 5px 18px rgba(31, 51, 73, .07); }
+    
+    .card, .section { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 5px 18px rgba(31, 51, 73, .07); margin-bottom: 18px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
     .value { font-size: clamp(2rem, 5vw, 2.6rem); font-weight: 700; margin: 12px 0 4px; overflow-wrap: anywhere; }
     .unit { font-size: .48em; font-weight: 500; color: #82909e; margin-left: 5px; }
     .status-ok { color: var(--green); }
     .status-alert { color: var(--red); }
     .subtext { color: var(--muted); font-size: .9rem; }
+    
+    /* Tabs System */
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+    .tab-btn { background: none; border: none; padding: 10px 20px; font-size: 1.1rem; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+    .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .tab-btn:hover { color: var(--blue-dark); }
+    .tab-content { display: block; }
+    .tab-content.hidden { display: none !important; }
+
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
     .btn { display: inline-flex; justify-content: center; align-items: center; gap: 7px; background: var(--blue); color: #fff; border: 0; padding: 11px 16px; border-radius: 7px; cursor: pointer; font-size: .95rem; text-decoration: none; min-height: 40px; }
     .btn:hover { background: var(--blue-dark); }
@@ -48,8 +59,20 @@
     .btn-green:hover { background: #176d43; }
     .btn-light { color: var(--blue); background: #eaf3fb; }
     .btn-light:hover { background: #d8eafa; }
+    
     .alert-box { background: #fff0f0; border-left: 5px solid var(--red); padding: 17px; margin: 18px 0; border-radius: 8px; display: none; }
     .alert-box h3 { margin: 0 0 8px; color: #a92323; }
+    
+    /* Suggestions */
+    #suggestionsText { font-size: 1rem; line-height: 1.6; color: #20364d; font-weight: 500; margin: 0; }
+
+    /* Table */
+    .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; }
+    th, td { padding: 12px 15px; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; font-weight: 600; color: #475569; }
+    tr:hover { background: #f1f5f9; }
+
     #mapStatus { display: none; padding: 12px 14px; margin: 12px 0; border-radius: 8px; background: #eaf3fb; color: #195b8e; line-height: 1.5; }
     #hospitalListContainer { display: none; margin-top: 16px; }
     .hospital-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
@@ -61,6 +84,7 @@
     .hospital-info h4 { margin: 0 0 5px; color: #20364d; overflow-wrap: anywhere; }
     .hospital-info p { margin: 3px 0 0; font-size: .88rem; color: var(--muted); }
     #map { height: 420px; width: 100%; border-radius: 10px; margin-top: 16px; display: none; box-shadow: 0 4px 14px rgba(0,0,0,.12); z-index: 1; }
+    
     .chart-card { margin-top: 18px; }
     .chart-wrap { position: relative; height: 330px; }
     .login-overlay { position: fixed; inset: 0; background: rgba(16, 30, 45, .78); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 18px; }
@@ -71,6 +95,7 @@
     .error-text { color: #b42318; font-size: .9rem; white-space: pre-wrap; }
     .empty-state { padding: 16px 0; color: var(--muted); }
     footer { text-align: center; color: var(--muted); font-size: .8rem; margin: 22px 0 4px; }
+    
     @media (max-width: 600px) {
       body { padding: 12px; }
       .card, .section { padding: 16px; }
@@ -78,6 +103,9 @@
       .hospital-item .btn { flex-shrink: 0; padding: 9px 10px; font-size: .85rem; }
       #map { height: 340px; }
       .chart-wrap { height: 280px; }
+      .tabs { flex-direction: column; border-bottom: none; gap: 5px; }
+      .tab-btn { border: 1px solid var(--border); border-radius: 7px; margin-bottom: 0; }
+      .tab-btn.active { background: #eaf3fb; border-color: var(--blue); }
     }
   </style>
 </head>
@@ -96,64 +124,107 @@
 
   <main class="container" id="dashboard" style="display:none;">
     <header>
-      <h1>🏥 Health Monitoring Dashboard</h1>
+      <h1>🏥 Health Dashboard</h1>
       <div id="connectionStatus" class="subtext" role="status">Connecting to Firebase…</div>
     </header>
 
-    <section class="grid" aria-label="Live health readings">
-      <div class="card">
-        <h2>Heart Rate</h2>
-        <div class="value" id="hrValue">--<span class="unit">bpm</span></div>
-        <div class="subtext">Live reading</div>
-      </div>
-      <div class="card">
-        <h2>SpO₂</h2>
-        <div class="value" id="spo2Value">--<span class="unit">%</span></div>
-        <div class="subtext">Live reading</div>
-      </div>
-      <div class="card">
-        <h2>Temperature</h2>
-        <div class="value" id="tempValue">--<span class="unit">°C</span></div>
-        <div class="subtext">Live reading</div>
-      </div>
-      <div class="card">
-        <h2>Current Status</h2>
-        <div class="value" id="statusValue">--</div>
-        <div class="subtext" id="updatedAt">Waiting for the first reading…</div>
-      </div>
-    </section>
-
-    <div class="toolbar">
-      <button class="btn btn-green" id="findHospitalsButton" type="button">📍 Find Hospitals / Clinics Near Me</button>
-      <a class="btn btn-light" id="googleMapsSearch" href="https://www.google.com/maps/search/hospitals+near+me/" target="_blank" rel="noopener noreferrer">Open Google Maps Search</a>
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="live">Live Dashboard</button>
+      <button class="tab-btn" data-tab="history">History Data (Google Sheets)</button>
     </div>
 
-    <section id="alertBox" class="alert-box" role="alert" aria-live="polite">
-      <h3>⚠️ Health Alert</h3>
-      <p id="alertMessage"></p>
-      <button class="btn" id="alertFindButton" type="button">📍 Find Nearby Medical Facilities</button>
-    </section>
-
-    <div id="mapStatus" role="status" aria-live="polite"></div>
-
-    <section id="hospitalListContainer" class="section">
-      <div class="hospital-heading">
-        <h3>Nearby Hospitals & Clinics <span class="subtext">(within 10 km)</span></h3>
-        <div class="toolbar" style="margin:0;">
-          <button class="btn btn-light" id="showAllMapButton" type="button">Show all on map</button>
-          <button class="btn btn-light hidden" id="hideMapButton" type="button" aria-controls="map">Hide map</button>
+    <!-- ============================================== -->
+    <!-- TAB 1: LIVE DASHBOARD -->
+    <!-- ============================================== -->
+    <div id="tab-live" class="tab-content">
+      <section class="grid" aria-label="Live health readings">
+        <div class="card">
+          <h2>Heart Rate</h2>
+          <div class="value" id="hrValue">--<span class="unit">bpm</span></div>
+          <div class="subtext">Live reading</div>
         </div>
+        <div class="card">
+          <h2>SpO₂</h2>
+          <div class="value" id="spo2Value">--<span class="unit">%</span></div>
+          <div class="subtext">Live reading</div>
+        </div>
+        <div class="card">
+          <h2>Temperature</h2>
+          <div class="value" id="tempValue">--<span class="unit">°C</span></div>
+          <div class="subtext">Live reading</div>
+        </div>
+        <div class="card">
+          <h2>Current Status</h2>
+          <div class="value" id="statusValue">--</div>
+          <div class="subtext" id="updatedAt">Waiting for the first reading…</div>
+        </div>
+      </section>
+
+      <!-- Suggestions Card -->
+      <section class="card" style="background: #eaf3fb; border-left: 5px solid var(--blue);">
+        <h2 style="border-bottom: none; margin-bottom: 5px;">💡 Health Suggestions</h2>
+        <p id="suggestionsText">Waiting for data to generate suggestions...</p>
+      </section>
+
+      <div class="toolbar">
+        <button class="btn btn-green" id="findHospitalsButton" type="button">📍 Find Hospitals Near Me</button>
+        <a class="btn btn-light" id="googleMapsSearch" href="https://www.google.com/maps/search/hospitals+near+me/" target="_blank" rel="noopener noreferrer">Open Google Maps Search</a>
       </div>
-      <div id="hospitalList"></div>
-    </section>
 
-    <div id="map" aria-label="Map of your location and nearby medical facilities"></div>
+      <section id="alertBox" class="alert-box" role="alert" aria-live="polite">
+        <h3>⚠️ Health Alert</h3>
+        <p id="alertMessage"></p>
+        <button class="btn" id="alertFindButton" type="button">📍 Find Nearby Medical Facilities</button>
+      </section>
 
-    <section class="card chart-card">
-      <h2>📈 Historical Readings (Google Sheets)</h2>
-      <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
-      <p id="historyStatus" class="subtext">Loading historical readings…</p>
-    </section>
+      <div id="mapStatus" role="status" aria-live="polite"></div>
+
+      <section id="hospitalListContainer" class="section">
+        <div class="hospital-heading">
+          <h3>Nearby Hospitals & Clinics <span class="subtext">(within 10 km)</span></h3>
+          <div class="toolbar" style="margin:0;">
+            <button class="btn btn-light" id="showAllMapButton" type="button">Show all on map</button>
+            <button class="btn btn-light hidden" id="hideMapButton" type="button" aria-controls="map">Hide map</button>
+          </div>
+        </div>
+        <div id="hospitalList"></div>
+      </section>
+
+      <div id="map" aria-label="Map of your location and nearby medical facilities"></div>
+
+      <section class="card chart-card">
+        <h2>📈 Graph: Last 30 Readings</h2>
+        <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+        <p id="historyStatus" class="subtext">Loading historical readings…</p>
+      </section>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: HISTORY TABLE -->
+    <!-- ============================================== -->
+    <div id="tab-history" class="tab-content hidden">
+      <section class="section">
+        <h2>📋 Full History from Google Sheets</h2>
+        <p class="subtext" style="margin-bottom: 15px;">Showing the latest entries first.</p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Heart Rate (bpm)</th>
+                <th>SpO2 (%)</th>
+                <th>Temperature (°C)</th>
+                <th>Alert Message</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="5" style="text-align:center;">Loading data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
 
     <footer>Map data © OpenStreetMap contributors. Facility listings may be incomplete; verify emergency access by phone.</footer>
   </main>
@@ -175,8 +246,6 @@
 
     const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec";
 
-    // Public community endpoints can be overloaded. Keep each attempt short and
-    // fall back to Photon if Overpass is busy or unreachable.
     const OVERPASS_ENDPOINTS = [
       "https://overpass-api.de/api/interpreter",
       "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
@@ -184,17 +253,16 @@
     ];
     const OVERPASS_CLIENT_TIMEOUT_MS = 12000;
     const SEARCH_RADIUS_METERS = 2500;
-    const MAX_DISPLAY_FACILITIES = 6; // Show only the six closest results.
+    const MAX_DISPLAY_FACILITIES = 6;
     let facilitySearchSource = "OpenStreetMap";
 
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
     const auth = getAuth(app);
-    // Do not persist the login across page reloads.
+    
     await setPersistence(auth, inMemoryPersistence);
-
-    // Clear any previously remembered login.
     await signOut(auth);
+    
     let chartInstance = null;
     let mapInstance = null;
     let userLat = null;
@@ -207,6 +275,18 @@
     let alertCountToday = 0;
 
     const byId = (id) => document.getElementById(id);
+
+    // --- Tab Switching Logic ---
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        const tabId = e.target.getAttribute('data-tab');
+        byId(`tab-${tabId}`).classList.remove('hidden');
+        e.target.classList.add('active');
+      });
+    });
 
     byId("loginForm").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -267,7 +347,7 @@
         byId("connectionStatus").textContent = "Could not read /readings. Check database rules and path.";
       });
       fetchHistory();
-      window.setInterval(fetchHistory, 60000);
+      window.setInterval(fetchHistory, 60000); // refresh every 60s
     }
 
     function valueOrDash(value) {
@@ -294,7 +374,49 @@
       liveAlertText = String(data.alertMsg ?? "Normal").trim() || "Normal";
       const updated = data.timestamp || data.updatedAt || data.time;
       byId("updatedAt").textContent = updated ? `Last update: ${String(updated)}` : "Live reading received";
+      
       updateAlertDisplay();
+      updateSuggestions(data);
+    }
+
+    function updateSuggestions(data) {
+      const hr = Number(data.hr);
+      const spo2 = Number(data.spo2);
+      const temp = Number(data.temp);
+      let suggestions = [];
+
+      if (!hr && !spo2 && !temp) {
+        byId("suggestionsText").textContent = "Waiting for live data...";
+        return;
+      }
+
+      // SpO2 Logic
+      if (spo2 > 0 && spo2 < 90) {
+        suggestions.push("⚠️ <b>Low Oxygen (SpO2 < 90%)</b>: Sit down, rest, and seek medical attention if you feel short of breath.");
+      } else if (spo2 >= 90 && spo2 < 95) {
+        suggestions.push("Oxygen is slightly low. Try taking slow, deep breaths and monitor closely.");
+      }
+
+      // Heart Rate Logic
+      if (hr > 100) {
+        suggestions.push("❤️ <b>High Heart Rate (>100 bpm)</b>: If you aren't exercising, rest and drink water. Consult a doctor if it persists.");
+      } else if (hr > 0 && hr < 60) {
+        suggestions.push("❤️ <b>Low Heart Rate (<60 bpm)</b>: Usually normal for athletes, but monitor for dizziness or fatigue.");
+      }
+
+      // Temperature Logic
+      if (temp > 38.0) {
+        suggestions.push("🌡️ <b>Fever detected (>38°C)</b>: Stay hydrated, rest, and consider fever-reducing medication.");
+      } else if (temp > 0 && temp < 35.0) {
+        suggestions.push("🌡️ <b>Low body temperature</b>: Warm up and monitor closely.");
+      }
+
+      // If all vitals are normal
+      if (suggestions.length === 0 && hr > 0 && spo2 > 0) {
+        suggestions.push("✅ <b>All vitals are within normal ranges.</b> Keep up the healthy habits!");
+      }
+
+      byId("suggestionsText").innerHTML = suggestions.join("<br><br>");
     }
 
     function updateAlertDisplay() {
@@ -307,8 +429,8 @@
         status.className = "value status-alert";
         box.style.display = "block";
         const messages = [];
-        if (isLiveAlert) messages.push(`Current alert: ${liveAlertText}. Follow your care plan and seek appropriate medical advice.`);
-        if (repeatedAlerts) messages.push(`There have been ${alertCountToday} recorded alerts today. Consider contacting a healthcare professional.`);
+        if (isLiveAlert) messages.push(`Current alert: ${liveAlertText}. Follow your care plan.`);
+        if (repeatedAlerts) messages.push(`There have been ${alertCountToday} recorded alerts today. Consider contacting a professional.`);
         byId("alertMessage").textContent = messages.join(" ");
       } else {
         status.textContent = "NORMAL";
@@ -325,13 +447,16 @@
         if (!response.ok) throw new Error(`Google Sheets endpoint returned HTTP ${response.status}`);
         const payload = await response.json();
         const rows = Array.isArray(payload) ? payload : (payload?.data || payload?.rows || []);
-        if (!Array.isArray(rows)) throw new Error("The Google Sheets endpoint did not return an array of rows.");
+        
+        if (!Array.isArray(rows)) throw new Error("The Google Sheets endpoint did not return an array.");
         if (rows.length === 0) {
           statusEl.textContent = "No historical rows were returned by Google Sheets.";
           return;
         }
 
         const validRows = rows.filter(row => row && row.Timestamp);
+        
+        // Count alerts today
         const todayKey = new Date().toDateString();
         alertCountToday = validRows.filter(row => {
           const message = String(row["Alert Message"] ?? "").trim();
@@ -340,28 +465,32 @@
         }).length;
         updateAlertDisplay();
 
+        // 1. Render Chart (Last 30 readings)
         const recentRows = validRows.slice(-30);
         renderChart(recentRows);
-        statusEl.textContent = `Showing ${recentRows.length} most recent readings from ${validRows.length} historical rows. Refreshes every 60 seconds.`;
+        
+        // 2. Render Table (All readings)
+        renderTable(validRows);
+
+        statusEl.textContent = `Showing ${recentRows.length} most recent readings on the graph. Table updated. Refreshes every 60 seconds.`;
       } catch (error) {
         console.error("Error fetching Google Sheets history:", error);
-        statusEl.textContent = "Could not load history. Check that the Apps Script web app is deployed for access and returns JSON. See the browser console for details.";
+        statusEl.textContent = "Could not load history. Check that the Apps Script web app is deployed and returns JSON.";
       }
     }
 
     function renderChart(rows) {
-      if (typeof Chart === "undefined") {
-        byId("historyStatus").textContent = "Chart.js could not load. Check the internet connection or CDN access.";
-        return;
-      }
+      if (typeof Chart === "undefined") return;
       const labels = rows.map(row => {
         const date = new Date(row.Timestamp);
         return Number.isNaN(date.getTime()) ? String(row.Timestamp) : date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
       });
       const hrData = rows.map(row => toNumberOrNull(row["Heart Rate (BPM)"] ?? row.hr));
       const spo2Data = rows.map(row => toNumberOrNull(row["SpO2 (%)"] ?? row.spo2));
+      
       const ctx = byId("historyChart").getContext("2d");
       if (chartInstance) chartInstance.destroy();
+      
       chartInstance = new Chart(ctx, {
         type: "line",
         data: { labels, datasets: [
@@ -376,12 +505,42 @@
       });
     }
 
+    function renderTable(rows) {
+      const tbody = byId("historyTableBody");
+      tbody.innerHTML = "";
+      
+      // Reverse to show latest first
+      const reversedRows = [...rows].reverse();
+
+      reversedRows.forEach(row => {
+        const tr = document.createElement("tr");
+        
+        const dateStr = row.Timestamp ? new Date(row.Timestamp).toLocaleString() : '--';
+        const hr = row['Heart Rate (BPM)'] || row.hr || '--';
+        const spo2 = row['SpO2 (%)'] || row.spo2 || '--';
+        const temp = row['Temp (°C)'] || row.temp || '--';
+        const alert = row['Alert Message'] || row.alertMsg || '--';
+        
+        const alertColor = String(alert).toLowerCase() !== 'normal' ? 'color: var(--red); font-weight: 600;' : 'color: var(--green); font-weight: 600;';
+
+        tr.innerHTML = `
+          <td>${dateStr}</td>
+          <td>${hr}</td>
+          <td>${spo2}</td>
+          <td>${temp}</td>
+          <td style="${alertColor}">${alert}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
     function toNumberOrNull(value) {
       if (value === null || value === undefined || value === "") return null;
       const number = Number(value);
       return Number.isFinite(number) ? number : null;
     }
 
+    // --- Map / Hospital logic ---
     byId("findHospitalsButton").addEventListener("click", () => findNearbyHospitals());
     byId("alertFindButton").addEventListener("click", () => findNearbyHospitals());
     byId("showAllMapButton").addEventListener("click", showAllHospitalsOnMap);
@@ -400,7 +559,7 @@
       if (!navigator.geolocation) {
         showLocationError("This browser does not support location access.");
         button.disabled = false;
-        button.textContent = "📍 Find Hospitals / Clinics Near Me";
+        button.textContent = "📍 Find Hospitals Near Me";
         return;
       }
 
@@ -408,39 +567,33 @@
         userLat = position.coords.latitude;
         userLon = position.coords.longitude;
         byId("googleMapsSearch").href = `https://www.google.com/maps/search/hospitals/@${userLat},${userLon},13z`;
-        statusEl.textContent = "Location received. Searching for hospitals and clinics within 10 km…";
+        statusEl.textContent = "Location received. Searching for hospitals within 10 km…";
         try {
           const facilities = await queryNearbyFacilities(userLat, userLon);
           cachedHospitals = facilities;
           renderHospitalList();
           if (facilities.length === 0) {
-            statusEl.textContent = "No nearby facilities were returned by the available map services. Open Google Maps Search above for another live search.";
+            statusEl.textContent = "No nearby facilities were returned.";
             byId("hospitalListContainer").style.display = "block";
-            byId("hospitalList").replaceChildren(makeEmptyState("No facilities were returned. This does not mean no hospitals exist nearby; map data and search services can be incomplete or temporarily unavailable."));
+            byId("hospitalList").replaceChildren(makeEmptyState("No facilities were returned."));
           } else {
-            const sourceNote = facilitySearchSource === "Photon fallback" ? " (backup search; results may be incomplete)" : "";
-            statusEl.textContent = `Showing the ${facilities.length} closest mapped medical facilities within 10 km${sourceNote}. Select “View map” or “Show all on map”.`;
+            statusEl.textContent = `Showing the ${facilities.length} closest facilities within 10 km.`;
             byId("hospitalListContainer").style.display = "block";
           }
         } catch (error) {
-          console.error("Nearby facility lookup failed:", error);
           statusEl.style.background = "#fff0f0";
           statusEl.style.color = "#a92323";
-          statusEl.textContent = `The map providers did not return a facility list. ${error.message} Use the Google Maps search link above, which is centered on your location, or retry shortly.`;
+          statusEl.textContent = `Error: ${error.message}`;
           byId("hospitalListContainer").style.display = "block";
-          byId("hospitalList").replaceChildren(makeEmptyState("The public map data service may be busy or blocked by the network. This does not mean there are no hospitals nearby."));
+          byId("hospitalList").replaceChildren(makeEmptyState("The map service is busy. Please try again."));
         } finally {
           button.disabled = false;
-          button.textContent = "📍 Find Hospitals / Clinics Near Me";
+          button.textContent = "📍 Find Hospitals Near Me";
         }
       }, (error) => {
-        let message = error.message || "Location could not be retrieved.";
-        if (error.code === error.PERMISSION_DENIED) message = "Location permission was denied. Allow location access for this site in your browser settings, then retry.";
-        if (error.code === error.POSITION_UNAVAILABLE) message = "Your device could not determine its location. Turn on device location services and retry.";
-        if (error.code === error.TIMEOUT) message = "Location request timed out. Check GPS/location settings and retry.";
-        showLocationError(message);
+        showLocationError(error.message);
         button.disabled = false;
-        button.textContent = "📍 Find Hospitals / Clinics Near Me";
+        button.textContent = "📍 Find Hospitals Near Me";
       }, { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 });
     }
 
@@ -449,7 +602,7 @@
       statusEl.style.display = "block";
       statusEl.style.background = "#fff0f0";
       statusEl.style.color = "#a92323";
-      statusEl.textContent = message + " Location access generally requires HTTPS (or localhost). You can also use the Google Maps search link above.";
+      statusEl.textContent = message + " Location access requires HTTPS. Use the Google Maps link above.";
     }
 
     async function fetchJsonWithTimeout(url, options = {}, timeoutMs = OVERPASS_CLIENT_TIMEOUT_MS) {
@@ -457,11 +610,7 @@
       const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
       try {
         const response = await fetch(url, { ...options, signal: controller.signal, cache: "no-store" });
-        if (!response.ok) {
-          let detail = "";
-          try { detail = (await response.text()).slice(0, 180); } catch (_) {}
-          throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.json();
       } finally {
         window.clearTimeout(timeoutId);
@@ -469,8 +618,6 @@
     }
 
     async function queryNearbyFacilities(lat, lon) {
-      // Use one compact query rather than a broad pair of large regex queries.
-      // Only ask for tags and element centers, not full geometry.
       const query = `
         [out:json][timeout:10][maxsize:67108864];
         (
@@ -479,105 +626,58 @@
         );
         out center;
       `;
-      const failures = [];
-
       for (const endpoint of OVERPASS_ENDPOINTS) {
         try {
           const result = await fetchJsonWithTimeout(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
             body: new URLSearchParams({ data: query })
-          }, OVERPASS_CLIENT_TIMEOUT_MS);
-
-          if (result?.remark) throw new Error(`Overpass query warning: ${String(result.remark).slice(0, 180)}`);
-          if (!Array.isArray(result?.elements)) throw new Error("Unexpected response from the map server.");
+          });
+          if (result?.remark) throw new Error(String(result.remark));
+          if (!Array.isArray(result?.elements)) throw new Error("Unexpected response");
 
           const facilities = normalizeFacilities(result.elements, lat, lon);
-          if (facilities.length > 0) {
-            facilitySearchSource = "Overpass";
-            // Keep the six closest facilities so the list and map stay focused.
-            return facilities.slice(0, MAX_DISPLAY_FACILITIES);
-          }
-          failures.push(`${new URL(endpoint).hostname}: query succeeded but returned no matching facilities`);
+          if (facilities.length > 0) return facilities.slice(0, MAX_DISPLAY_FACILITIES);
         } catch (error) {
-          const reason = error?.name === "AbortError" ? `timed out after ${Math.round(OVERPASS_CLIENT_TIMEOUT_MS / 1000)} seconds` : (error?.message || "request failed");
-          failures.push(`${new URL(endpoint).hostname}: ${reason}`);
           console.warn("Overpass endpoint failed:", endpoint, error);
         }
       }
-
-      // Fallback: Photon can return nearby OSM POIs without requiring an Overpass query.
-      // It is a backup search, not a guaranteed complete directory.
       try {
-        const fallbackFacilities = await queryPhotonFacilities(lat, lon);
-        if (fallbackFacilities.length > 0) {
-          facilitySearchSource = "Photon fallback";
-          console.info("Using Photon fallback because Overpass was unavailable:", failures);
-          return fallbackFacilities;
-        }
-        failures.push("Photon fallback: no nearby facilities returned");
+        return await queryPhotonFacilities(lat, lon);
       } catch (error) {
-        failures.push(`Photon fallback: ${error?.name === "AbortError" ? "request timed out" : (error?.message || "request failed")}`);
-        console.warn("Photon fallback failed:", error);
+        throw new Error("All public map services failed.");
       }
-
-      throw new Error(failures.join("; ") || "All public map services failed.");
     }
 
     async function queryPhotonFacilities(lat, lon) {
       const categories = ["amenity:hospital", "amenity:clinic", "amenity:doctors"];
       const requests = categories.map(async (tag) => {
-        const params = new URLSearchParams({
-          lat: String(lat),
-          lon: String(lon),
-          radius: "2.5",
-          limit: "30",
-          osm_tag: tag
-        });
-        const url = `https://photon.komoot.io/reverse?${params.toString()}`;
-        return fetchJsonWithTimeout(url, {}, 9000);
+        const params = new URLSearchParams({ lat, lon, radius: "2.5", limit: "30", osm_tag: tag });
+        return fetchJsonWithTimeout(`https://photon.komoot.io/reverse?${params.toString()}`, {}, 9000);
       });
       const responses = await Promise.allSettled(requests);
       const features = [];
-      const errors = [];
       for (const response of responses) {
-        if (response.status === "fulfilled") {
-          if (Array.isArray(response.value?.features)) features.push(...response.value.features);
-        } else {
-          errors.push(response.reason?.message || "one Photon category request failed");
-        }
+        if (response.status === "fulfilled" && Array.isArray(response.value?.features)) features.push(...response.value.features);
       }
-      if (!features.length && errors.length === categories.length) {
-        throw new Error(`Backup POI search failed: ${errors.slice(0, 2).join("; ")}`);
-      }
-
       const seen = new Set();
       const facilities = [];
       for (const feature of features) {
-        const coordinates = feature?.geometry?.coordinates;
-        if (!Array.isArray(coordinates) || coordinates.length < 2) continue;
-        const lonValue = Number(coordinates[0]);
-        const latValue = Number(coordinates[1]);
-        if (!Number.isFinite(latValue) || !Number.isFinite(lonValue)) continue;
+        const coords = feature?.geometry?.coordinates;
+        if (!Array.isArray(coords) || coords.length < 2) continue;
+        const lonValue = Number(coords[0]);
+        const latValue = Number(coords[1]);
         const distance = haversineKm(lat, lon, latValue, lonValue);
         if (distance > 2.5) continue;
-
-        const properties = feature.properties || {};
-        const id = properties.osm_type && properties.osm_id
-          ? `${properties.osm_type}/${properties.osm_id}`
-          : `${latValue.toFixed(5)},${lonValue.toFixed(5)},${String(properties.name || "").toLowerCase()}`;
+        const props = feature.properties || {};
+        const id = props.osm_id || `${latValue},${lonValue}`;
         if (seen.has(id)) continue;
         seen.add(id);
-
-        const type = properties.osm_value || properties.osm_key || "medical facility";
         facilities.push({
           id: `photon/${id}`,
-          name: properties.name || properties.street || "Unnamed medical facility",
-          type: prettyType(type),
-          lat: latValue,
-          lon: lonValue,
-          distance,
-          tags: properties
+          name: props.name || "Unnamed facility",
+          type: prettyType(props.osm_value || "medical"),
+          lat: latValue, lon: lonValue, distance
         });
       }
       facilities.sort((a, b) => a.distance - b.distance);
@@ -591,161 +691,137 @@
         const lat = element.lat ?? element.center?.lat;
         const lon = element.lon ?? element.center?.lon;
         if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) continue;
-        const latitude = Number(lat);
-        const longitude = Number(lon);
-        const distance = haversineKm(originLat, originLon, latitude, longitude);
-        if (distance > 2.6) continue; // OSM way/relation centers can be slightly offset from their actual footprint.
+        const distance = haversineKm(originLat, originLon, lat, lon);
+        if (distance > 2.6) continue;
         const tags = element.tags || {};
-        const name = tags["name:en"] || tags.name || tags.official_name || tags.brand || "Unnamed medical facility";
-        const kind = tags.amenity || tags.healthcare || "medical facility";
-        const key = `${element.type || "osm"}/${element.id ?? `${latitude.toFixed(5)},${longitude.toFixed(5)}`}`;
+        const name = tags.name || "Unnamed medical facility";
+        const kind = tags.amenity || tags.healthcare || "medical";
+        const key = `${element.type}/${element.id}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        found.push({ id: key, name, type: prettyType(kind), lat: latitude, lon: longitude, distance, tags });
+        found.push({ id: key, name, type: prettyType(kind), lat, lon, distance });
       }
       found.sort((a, b) => a.distance - b.distance);
       return found.slice(0, MAX_DISPLAY_FACILITIES);
     }
 
     function prettyType(value) {
-      const labels = {
-        hospital: "Hospital", clinic: "Clinic", doctors: "Doctor / Medical practice",
-        doctor: "Doctor / Medical practice", urgent_care: "Urgent care", health_post: "Health post",
-        centre: "Healthcare centre", center: "Healthcare centre"
-      };
+      const labels = { hospital: "Hospital", clinic: "Clinic", doctors: "Doctor", urgent_care: "Urgent care" };
       return labels[value] || String(value).replaceAll("_", " ");
     }
 
     function haversineKm(lat1, lon1, lat2, lon2) {
-      const rad = degrees => degrees * Math.PI / 180;
-      const dLat = rad(lat2 - lat1);
-      const dLon = rad(lon2 - lon1);
+      const rad = d => d * Math.PI / 180;
+      const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
       return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    function makeEmptyState(message) {
+    function makeEmptyState(msg) {
       const div = document.createElement("div");
       div.className = "empty-state";
-      div.textContent = message;
+      div.textContent = msg;
       return div;
     }
 
     function renderHospitalList() {
       const list = byId("hospitalList");
       list.replaceChildren();
-      if (!cachedHospitals.length) {
-        list.appendChild(makeEmptyState("No medical facilities are available to display."));
-        return;
-      }
-      const fragment = document.createDocumentFragment();
-      cachedHospitals.forEach((facility, index) => {
+      if (!cachedHospitals.length) return;
+      const frag = document.createDocumentFragment();
+      cachedHospitals.forEach((f, i) => {
         const item = document.createElement("div");
         item.className = "hospital-item";
-        const info = document.createElement("div");
-        info.className = "hospital-info";
-        const title = document.createElement("h4");
-        title.textContent = `${index + 1}. ${facility.name}`;
-        const type = document.createElement("p");
-        type.textContent = facility.type;
-        const distance = document.createElement("p");
-        distance.textContent = `Approx. ${facility.distance.toFixed(2)} km away (straight-line distance)`;
-        info.append(title, type, distance);
-        const button = document.createElement("button");
-        button.className = "btn btn-light";
-        button.type = "button";
-        button.textContent = "📍 View map";
-        button.addEventListener("click", () => viewMapFor(index));
-        item.append(info, button);
-        fragment.appendChild(item);
+        item.innerHTML = `
+          <div class="hospital-info">
+            <h4>${i + 1}. ${f.name}</h4>
+            <p>${f.type}</p>
+            <p>Approx. ${f.distance.toFixed(2)} km away</p>
+          </div>
+        `;
+        const btn = document.createElement("button");
+        btn.className = "btn btn-light";
+        btn.textContent = "📍 View map";
+        btn.onclick = () => viewMapFor(i);
+        item.appendChild(btn);
+        frag.appendChild(item);
       });
-      list.appendChild(fragment);
+      list.appendChild(frag);
     }
 
     function ensureMap() {
       if (!mapInstance) {
         mapInstance = L.map("map");
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
-          attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener noreferrer\">OpenStreetMap contributors</a>"
-        }).addTo(mapInstance);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapInstance);
       }
       byId("map").style.display = "block";
       byId("hideMapButton").classList.remove("hidden");
-      window.setTimeout(() => mapInstance.invalidateSize(), 100);
+      setTimeout(() => mapInstance.invalidateSize(), 100);
     }
 
     function hideMap() {
-      // Hide only the map; keep the nearby-facility list and markers cached.
       byId("map").style.display = "none";
       byId("hideMapButton").classList.add("hidden");
     }
 
     function clearMapMarkers() {
       if (userMarker && mapInstance) mapInstance.removeLayer(userMarker);
-      hospitalMarkers.forEach(marker => mapInstance.removeLayer(marker));
+      hospitalMarkers.forEach(m => mapInstance.removeLayer(m));
       hospitalMarkers = [];
       userMarker = null;
     }
 
     function makePopup(title, detail) {
       const wrap = document.createElement("div");
-      const strong = document.createElement("strong");
-      strong.textContent = title;
-      const p = document.createElement("div");
-      p.textContent = detail;
-      wrap.append(strong, p);
+      wrap.innerHTML = `<strong>${title}</strong><div>${detail}</div>`;
       return wrap;
     }
 
     function addUserMarker() {
-      userMarker = L.marker([userLat, userLon]).addTo(mapInstance)
-        .bindPopup(makePopup("Your location", "Location supplied by your browser"));
+      userMarker = L.circleMarker([userLat, userLon], { radius: 8, color: '#ffffff', weight: 2, fillColor: '#3498db', fillOpacity: 1 })
+        .addTo(mapInstance).bindPopup(makePopup("Your Location", "Browser GPS"));
     }
 
     function addFacilityMarker(facility, index) {
-      const marker = L.marker([facility.lat, facility.lon]).addTo(mapInstance)
-        .bindPopup(makePopup(facility.name, `${facility.type} · ${facility.distance.toFixed(2)} km away`));
-      marker.bindTooltip(String(index + 1), { direction: "top", offset: [0, -8] });
+      const icon = L.divIcon({
+        html: '<div style="font-size: 20px; background: white; border-radius: 50%; padding: 4px; border: 2px solid #e74c3c; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏥</div>',
+        className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      const marker = L.marker([facility.lat, facility.lon], { icon }).addTo(mapInstance)
+        .bindPopup(makePopup(facility.name, `${facility.type} · ${facility.distance.toFixed(2)} km`));
       hospitalMarkers.push(marker);
-      return marker;
     }
 
     function viewMapFor(index) {
-      const facility = cachedHospitals[index];
-      if (!facility || userLat === null || userLon === null) return;
+      const f = cachedHospitals[index];
+      if (!f || userLat === null) return;
       ensureMap();
       clearMapMarkers();
       addUserMarker();
       cachedHospitals.forEach((item, i) => addFacilityMarker(item, i));
-      mapInstance.setView([facility.lat, facility.lon], 15);
-      const marker = hospitalMarkers[index];
-      if (marker) marker.openPopup();
+      mapInstance.setView([f.lat, f.lon], 15);
+      if (hospitalMarkers[index]) hospitalMarkers[index].openPopup();
       byId("map").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function showAllHospitalsOnMap() {
-      if (userLat === null || userLon === null) {
+      if (userLat === null) {
         byId("mapStatus").style.display = "block";
-        byId("mapStatus").textContent = "Find nearby medical facilities first so the map can use your current location.";
+        byId("mapStatus").textContent = "Find nearby facilities first.";
         return;
       }
       ensureMap();
       clearMapMarkers();
       addUserMarker();
       const bounds = L.latLngBounds([[userLat, userLon]]);
-      cachedHospitals.forEach((facility, index) => {
-        addFacilityMarker(facility, index);
-        bounds.extend([facility.lat, facility.lon]);
+      cachedHospitals.forEach((f, i) => {
+        addFacilityMarker(f, i);
+        bounds.extend([f.lat, f.lon]);
       });
       if (cachedHospitals.length) mapInstance.fitBounds(bounds.pad(0.12), { maxZoom: 14 });
       else mapInstance.setView([userLat, userLon], 13);
       byId("map").scrollIntoView({ behavior: "smooth", block: "start" });
     }
-
-    // Expose functions for debugging from the browser console if needed.
-    window.findNearbyHospitals = findNearbyHospitals;
-    window.showAllHospitalsOnMap = showAllHospitalsOnMap;
   </script>
 </body>
 </html>
