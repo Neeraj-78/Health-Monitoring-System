@@ -15,7 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
-  <!-- Official Mappls Web Map SDK v3.0 (Fixed CDN Endpoint) -->
+  <!-- Official Mappls Web Map SDK v3.0 -->
   <script src="https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=bdovxvygaghpdtyjenqaeikjchrddfjydirq"></script>
 
   <style>
@@ -99,15 +99,6 @@
     .hospital-info h4 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); }
     .hospital-info p { font-size: 0.9rem; color: var(--text-muted); }
 
-    /* Login Overlay */
-    .login-overlay { position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; justify-content: center; align-items: center; z-index: 2000; }
-    .login-box { background: var(--card-bg); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
-    .login-box h2 { text-align: center; margin-bottom: 10px; font-size: 1.8rem; color: var(--text-main); }
-    .login-box p { text-align: center; color: var(--text-muted); margin-bottom: 25px; }
-    .login-box input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; }
-    .login-box button { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
-    .error-text { color: var(--red); font-size: 0.9rem; margin-top: 15px; text-align: center; }
-    
     .hidden { display: none !important; }
 
     @media (max-width: 768px) {
@@ -122,20 +113,8 @@
 </head>
 <body>
 
-  <!-- Login Overlay -->
-  <div id="loginOverlay" class="login-overlay">
-    <form class="login-box" id="loginForm">
-      <h2>Welcome Back</h2>
-      <p>Sign in to your health dashboard</p>
-      <input type="email" id="email" name="email" placeholder="Email Address" autocomplete="username" required>
-      <input type="password" id="password" name="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" id="loginButton">Sign In</button>
-      <p id="loginError" class="error-text"></p>
-    </form>
-  </div>
-
   <!-- Sidebar Navigation -->
-  <nav class="sidebar hidden" id="sidebar">
+  <nav class="sidebar" id="sidebar">
     <div class="brand">
       <i class="fa-solid fa-heart-pulse"></i> VitalWatch
     </div>
@@ -148,7 +127,7 @@
   </nav>
 
   <!-- Main Content -->
-  <main class="main-content hidden" id="mainContent">
+  <main class="main-content" id="mainContent">
     
     <header class="header">
       <h1>Dashboard</h1>
@@ -259,7 +238,6 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
@@ -275,10 +253,8 @@
     
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
-    const auth = getAuth(app);
     
     let chartInstance = null;
-    let dashboardStarted = false;
     let mapplsMap = null;
     let mapInitialized = false;
 
@@ -309,36 +285,9 @@
       });
     });
 
-    // --- Authentication Persistence & Sign-in Logic ---
-    byId("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const btn = byId("loginButton");
-      byId("loginError").textContent = "";
-      btn.textContent = "Signing in...";
-      
-      try {
-        await signInWithEmailAndPassword(auth, byId("email").value.trim(), byId("password").value);
-      } catch (error) {
-        byId("loginError").textContent = "Invalid email or password.";
-      } finally {
-        btn.textContent = "Sign In";
-      }
-    });
-
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        byId("loginOverlay").classList.add("hidden");
-        byId("sidebar").classList.remove("hidden");
-        byId("mainContent").classList.remove("hidden");
-        if (!dashboardStarted) {
-          dashboardStarted = true;
-          startDashboard();
-        }
-      } else {
-        byId("loginOverlay").classList.remove("hidden");
-        byId("sidebar").classList.add("hidden");
-        byId("mainContent").classList.add("hidden");
-      }
+    // AUTO LOGIN / AUTO START DIRECTLY ON PAGE LOAD
+    window.addEventListener('load', () => {
+      startDashboard();
     });
 
     // --- Core Logic ---
@@ -561,7 +510,6 @@
         map: mapplsMap,
         position: { lat: lat, lng: lon },
         popupHtml: `<b>📍 ${title} (You)</b>`,
-        // Custom SVG icon styled in Blue for your location
         icon: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
           <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" fill="#2563eb" fill-opacity="0.25"/>
@@ -587,7 +535,6 @@
         const hLat = lat + item.latOffset;
         const hLon = lon + item.lngOffset;
 
-        // Custom SVG pin styled in Red for hospitals
         const redHospitalIcon = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
           <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 24 32">
             <path fill="#dc2626" stroke="#ffffff" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
@@ -596,7 +543,7 @@
           </svg>
         `);
 
-        // Plot Red Pin on Mappls Map Canvas
+        // Plot Red Pins on Mappls Map Canvas
         new MapplsSDK.Marker({
           map: mapplsMap,
           position: { lat: hLat, lng: hLon },
