@@ -556,16 +556,24 @@
 
       mapInitialized = true;
 
-      // Drop user pin on Map
+      // 🔵 1. YOUR LOCATION MARKER (BLUE ICON)
       new MapplsSDK.Marker({
         map: mapplsMap,
         position: { lat: lat, lng: lon },
-        popupHtml: `<b>${title}</b>`
+        popupHtml: `<b>📍 ${title} (You)</b>`,
+        // Custom SVG icon styled in Blue for your location
+        icon: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" fill="#2563eb" fill-opacity="0.25"/>
+            <circle cx="12" cy="12" r="6" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+          </svg>
+        `),
+        offset: [0, 0]
       });
 
       status.style.display = "none";
 
-      // Render Hospital List & Markers
+      // 🔴 2. HOSPITALS MARKERS (RED ICONS WITH NUMBERS)
       const mockHospitals = [
         { name: "City Multi-Specialty Hospital", address: "Main Road, Sector 4", latOffset: 0.006, lngOffset: 0.004 },
         { name: "Apollo Medical Care & Trauma Center", address: "Cross Road 12, Health Zone", latOffset: -0.005, lngOffset: 0.008 },
@@ -579,11 +587,23 @@
         const hLat = lat + item.latOffset;
         const hLon = lon + item.lngOffset;
 
-        // Plot hospital pins onto Mappls Map Canvas
+        // Custom SVG pin styled in Red for hospitals
+        const redHospitalIcon = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 24 32">
+            <path fill="#dc2626" stroke="#ffffff" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
+            <circle cx="12" cy="11" r="7" fill="#ffffff"/>
+            <text x="12" y="15" font-size="10" font-weight="bold" fill="#dc2626" text-anchor="middle">${idx + 1}</text>
+          </svg>
+        `);
+
+        // Plot Red Pin on Mappls Map Canvas
         new MapplsSDK.Marker({
           map: mapplsMap,
           position: { lat: hLat, lng: hLon },
-          popupHtml: `<b>${idx + 1}. ${item.name}</b><br>${item.address}`
+          popupHtml: `<b style="color:#dc2626;">🏥 ${idx + 1}. ${item.name}</b><br>${item.address}`,
+          icon: redHospitalIcon,
+          width: 32,
+          height: 42
         });
 
         // Add to Sidebar Cards
@@ -591,7 +611,10 @@
         div.className = "hospital-item";
         div.innerHTML = `
           <div class="hospital-info">
-            <h4>${idx + 1}. ${item.name}</h4>
+            <h4 style="display:flex; align-items:center; gap:6px;">
+              <span style="background:#dc2626; color:white; border-radius:50%; width:20px; height:20px; font-size:12px; display:inline-flex; align-items:center; justify-content:center;">${idx + 1}</span>
+              ${item.name}
+            </h4>
             <p>${item.address}</p>
           </div>
           <a href="https://www.google.com/maps/search/?api=1&query=${hLat},${hLon}" target="_blank" class="btn btn-outline btn-sm">
