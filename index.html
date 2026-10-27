@@ -1,198 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappls Nearby Hospitals</title>
-
-    <!-- Mappls Vector Map SDK v3.0 -->
-    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_sdk?layer=vector&v=3.0"></script>
-    <!-- Mappls Plugins SDK (Includes Nearby Search Support) -->
-    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_plugin?v=3.0"></script>
-
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-        }
-        #sidebar {
-            width: 380px;
-            padding: 20px;
-            background: #f8f9fa;
-            overflow-y: auto;
-            border-right: 1px solid #ddd;
-            display: flex;
-            flex-direction: column;
-        }
-        #map {
-            flex-grow: 1;
-            height: 100%;
-        }
-        .btn {
-            background-color: #0066ff;
-            color: white;
-            border: none;
-            padding: 12px 15px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 6px;
-            width: 100%;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-        .btn:hover { background-color: #0052cc; }
-        .hospital-card {
-            background: white;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-            border-left: 4px solid #0066ff;
-        }
-        .hospital-card h4 {
-            margin: 0 0 5px 0;
-            color: #333;
-            font-size: 14px;
-        }
-        .hospital-card p {
-            margin: 0;
-            font-size: 12px;
-            color: #666;
-        }
-        #status {
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #e9ecef;
-            border-radius: 4px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mappls test</title>
+  <style>
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
+    #status {
+      position: absolute; top: 10px; left: 10px; z-index: 10;
+      background: #fff; padding: 8px 12px; border-radius: 6px;
+      font: 14px Arial, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+  </style>
+  <script src="https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=YOUR_MAPPLS_KEY"></script>
 </head>
 <body>
+  <div id="status">Loading Mappls...</div>
+  <div id="map"></div>
 
-    <div id="sidebar">
-        <h3>Mappls Hospital Finder</h3>
-        <button class="btn" onclick="findMyLocationAndHospitals()">Get Current Location & 5 Hospitals</button>
-        <div id="status">Initializing Mappls Map SDK...</div>
-        <div id="hospital-list"></div>
-    </div>
+  <script>
+    const status = document.getElementById('status');
+    const fallback = { lat: 12.9716, lng: 77.5946 };
 
-    <div id="map"></div>
+    function showMap(center, label) {
+      const map = new mappls.Map('map', { center: center, zoom: 14, geolocation: false });
+      map.on('load', function () {
+        new mappls.Marker({ map: map, position: center, popupHtml: '<b>' + label + '</b>' });
+      });
+    }
 
-    <script>
-        let map = null;
-        let userMarker = null;
+    window.addEventListener('load', function () {
+      if (typeof mappls === 'undefined') {
+        status.textContent = 'Mappls SDK did not load. Check the key in the script tag.';
+        return;
+      }
+      status.textContent = 'Mappls loaded. Detecting your location...';
 
-        // Initialize Mappls Map safely on window load
-        window.addEventListener('load', function() {
-            if (typeof mappls === 'undefined') {
-                document.getElementById('status').innerText = "Error: Mappls SDK script failed to load.";
-                return;
-            }
-
-            // Initialize with your whitelisted key and the 'nearby' plugin module
-            mappls.initialize("bdovxvygaghpdtyjenqaeikjchrddfjydirq", { map: true, plugins: ['nearby'] }, function() {
-                map = new mappls.Map('map', {
-                    center: [12.9716, 77.5946], // Default center (Bengaluru)
-                    zoom: 13
-                });
-
-                document.getElementById('status').innerText = "Mappls Map loaded successfully. Click the button below.";
-            });
-        });
-
-        function findMyLocationAndHospitals() {
-            const statusEl = document.getElementById('status');
-            const listEl = document.getElementById('hospital-list');
-
-            if (!map) {
-                statusEl.innerText = "Map is still initializing. Please wait...";
-                return;
-            }
-
-            if (!navigator.geolocation) {
-                statusEl.innerText = "Geolocation is not supported by your browser.";
-                return;
-            }
-
-            statusEl.innerText = "Fetching your GPS coordinates...";
-
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-
-                    statusEl.innerText = `Location found! Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-
-                    // Center Mappls map to user position
-                    map.setCenter({ lat: lat, lng: lng });
-                    map.setZoom(14);
-
-                    // Drop or update user location marker
-                    if (userMarker) {
-                        userMarker.remove();
-                    }
-                    userMarker = new mappls.Marker({
-                        map: map,
-                        position: { lat: lat, lng: lng },
-                        popupHtml: "<b>You are here</b>"
-                    });
-
-                    // Trigger Mappls Nearby Plugin for Hospitals
-                    fetchMapplsHospitals(lat, lng);
-                },
-                function(error) {
-                    statusEl.innerText = "GPS Error: Permission denied or unavailable.";
-                    console.error(error);
-                },
-                { enableHighAccuracy: true }
-            );
-        }
-
-        function fetchMapplsHospitals(lat, lng) {
-            const listEl = document.getElementById('hospital-list');
-            listEl.innerHTML = "Searching nearby hospitals via Mappls...";
-
-            // Check if Mappls nearby plugin method is active
-            if (typeof mappls.nearby === 'function') {
-                mappls.nearby({
-                    refLocation: [lat, lng],
-                    keywords: 'hospital',
-                    radius: 5000,
-                    map: map,
-                    popups: true,
-                    callback: function(data) {
-                        listEl.innerHTML = "";
-                        
-                        if (data && data.length > 0) {
-                            // Extract top 5 results safely
-                            const top5 = data.slice(0, 5);
-
-                            top5.forEach((item, index) => {
-                                const name = item.placeName || item.name || "Hospital Facility";
-                                const address = item.placeAddress || item.address || "Address unavailable";
-
-                                listEl.innerHTML += `
-                                    <div class="hospital-card">
-                                        <h4>${index + 1}. ${name}</h4>
-                                        <p>${address}</p>
-                                    </div>
-                                `;
-                            });
-                        } else {
-                            listEl.innerHTML = "<p>No nearby hospitals found within 5km.</p>";
-                        }
-                    }
-                });
-            } else {
-                listEl.innerHTML = "<p style='color:red;'>Mappls Nearby plugin is loading. Please retry in a few seconds.</p>";
-            }
-        }
-    </script>
+      navigator.geolocation.getCurrentPosition(
+        function (p) {
+          const c = { lat: p.coords.latitude, lng: p.coords.longitude };
+          status.textContent = 'Location found: ' + c.lat.toFixed(4) + ', ' + c.lng.toFixed(4);
+          showMap(c, 'You are here');
+        },
+        function () {
+          status.textContent = 'Location unavailable. Showing Bengaluru.';
+          showMap(fallback, 'Bengaluru');
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    });
+  </script>
 </body>
 </html>
