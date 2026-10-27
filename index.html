@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nearby Hospitals Finder</title>
+    <title>Mappls Nearby Hospitals</title>
 
-    <!-- Leaflet CSS CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-
-    <!-- Leaflet JS CDN -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Mappls Vector Map SDK v3.0 -->
+    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_sdk?layer=vector&v=3.0"></script>
+    <!-- Mappls Plugins SDK (Includes Nearby Search Support) -->
+    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_plugin?v=3.0"></script>
 
     <style>
         * { box-sizing: border-box; }
@@ -34,7 +33,7 @@
             height: 100%;
         }
         .btn {
-            background-color: #007bff;
+            background-color: #0066ff;
             color: white;
             border: none;
             padding: 12px 15px;
@@ -45,14 +44,14 @@
             margin-bottom: 15px;
             font-weight: bold;
         }
-        .btn:hover { background-color: #0056b3; }
+        .btn:hover { background-color: #0052cc; }
         .hospital-card {
             background: white;
             padding: 12px;
             margin-bottom: 10px;
             border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-            border-left: 4px solid #28a745;
+            border-left: 4px solid #0066ff;
         }
         .hospital-card h4 {
             margin: 0 0 5px 0;
@@ -77,9 +76,9 @@
 <body>
 
     <div id="sidebar">
-        <h3>Hospital Finder</h3>
-        <button class="btn" onclick="findHospitals()">Get Current Location & 5 Hospitals</button>
-        <div id="status">Click the button to locate your position.</div>
+        <h3>Mappls Hospital Finder</h3>
+        <button class="btn" onclick="findMyLocationAndHospitals()">Get Current Location & 5 Hospitals</button>
+        <div id="status">Initializing Mappls Map SDK...</div>
         <div id="hospital-list"></div>
     </div>
 
@@ -88,29 +87,31 @@
     <script>
         let map = null;
         let userMarker = null;
-        let hospitalLayerGroup = L.layerGroup();
 
-        // Initialize OpenStreetMap via Leaflet on load
+        // Initialize Mappls Map safely on window load
         window.addEventListener('load', function() {
-            // Default center: Bengaluru
-            map = L.map('map').setView([12.9716, 77.5946], 13);
+            if (typeof mappls === 'undefined') {
+                document.getElementById('status').innerText = "Error: Mappls SDK script failed to load.";
+                return;
+            }
 
-            // Add OpenStreetMap tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+            // Initialize with your whitelisted key and the 'nearby' plugin module
+            mappls.initialize("bdovxvygaghpdtyjenqaeikjchrddfjydirq", { map: true, plugins: ['nearby'] }, function() {
+                map = new mappls.Map('map', {
+                    center: [12.9716, 77.5946], // Default center (Bengaluru)
+                    zoom: 13
+                });
 
-            hospitalLayerGroup.addTo(map);
-            document.getElementById('status').innerText = "Map loaded successfully. Click the button to search.";
+                document.getElementById('status').innerText = "Mappls Map loaded successfully. Click the button below.";
+            });
         });
 
-        function findHospitals() {
+        function findMyLocationAndHospitals() {
             const statusEl = document.getElementById('status');
             const listEl = document.getElementById('hospital-list');
 
             if (!map) {
-                statusEl.innerText = "Map is still loading...";
+                statusEl.innerText = "Map is still initializing. Please wait...";
                 return;
             }
 
@@ -128,19 +129,22 @@
 
                     statusEl.innerText = `Location found! Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
 
-                    // Center map to user position
-                    map.setView([lat, lng], 14);
+                    // Center Mappls map to user position
+                    map.setCenter({ lat: lat, lng: lng });
+                    map.setZoom(14);
 
-                    // Place user marker
+                    // Drop or update user location marker
                     if (userMarker) {
-                        map.removeLayer(userMarker);
+                        userMarker.remove();
                     }
-                    userMarker = L.marker([lat, lng]).addTo(map)
-                        .bindPopup("<b>Your Location</b>")
-                        .openPopup();
+                    userMarker = new mappls.Marker({
+                        map: map,
+                        position: { lat: lat, lng: lng },
+                        popupHtml: "<b>You are here</b>"
+                    });
 
-                    // Generate / Display 5 Nearby Hospitals around user coordinates
-                    displayNearbyHospitals(lat, lng);
+                    // Trigger Mappls Nearby Plugin for Hospitals
+                    fetchMapplsHospitals(lat, lng);
                 },
                 function(error) {
                     statusEl.innerText = "GPS Error: Permission denied or unavailable.";
@@ -150,36 +154,44 @@
             );
         }
 
-        function displayNearbyHospitals(lat, lng) {
+        function fetchMapplsHospitals(lat, lng) {
             const listEl = document.getElementById('hospital-list');
-            listEl.innerHTML = "";
-            hospitalLayerGroup.clearLayers();
+            listEl.innerHTML = "Searching nearby hospitals via Mappls...";
 
-            // Curated list of realistic nearby medical facilities relative to user coords
-            const mockHospitals = [
-                { name: "City Multi-Specialty Hospital", address: "Main Road, Sector 4", dist: "1.10 km", latOffset: 0.006, lngOffset: 0.004 },
-                { name: "Apollo Medical Care & Trauma Center", address: "Cross Road 12, Health Zone", dist: "1.25 km", latOffset: -0.005, lngOffset: 0.008 },
-                { name: "St. John's Community Hospital", address: "Station Avenue, Block B", dist: "2.10 km", latOffset: 0.012, lngOffset: -0.003 },
-                { name: "Lifeline Global Healthcare", address: "Ring Road Junction", dist: "2.85 km", latOffset: -0.008, lngOffset: -0.006 },
-                { name: "Apex Life Care & Diagnostics", address: "Park View Street", dist: "3.40 km", latOffset: 0.002, lngOffset: -0.011 }
-            ];
+            // Check if Mappls nearby plugin method is active
+            if (typeof mappls.nearby === 'function') {
+                mappls.nearby({
+                    refLocation: [lat, lng],
+                    keywords: 'hospital',
+                    radius: 5000,
+                    map: map,
+                    popups: true,
+                    callback: function(data) {
+                        listEl.innerHTML = "";
+                        
+                        if (data && data.length > 0) {
+                            // Extract top 5 results safely
+                            const top5 = data.slice(0, 5);
 
-            mockHospitals.forEach((item, index) => {
-                const hLat = lat + item.latOffset;
-                const hLng = lng + item.lngOffset;
+                            top5.forEach((item, index) => {
+                                const name = item.placeName || item.name || "Hospital Facility";
+                                const address = item.placeAddress || item.address || "Address unavailable";
 
-                // Add to sidebar
-                listEl.innerHTML += `
-                    <div class="hospital-card">
-                        <h4>${index + 1}. ${item.name}</h4>
-                        <p>${item.address} (${item.dist} away)</p>
-                    </div>
-                `;
-
-                // Add marker to map
-                const marker = L.marker([hLat, hLng]).bindPopup(`<b>${index + 1}. ${item.name}</b><br>${item.address}`);
-                hospitalLayerGroup.addLayer(marker);
-            });
+                                listEl.innerHTML += `
+                                    <div class="hospital-card">
+                                        <h4>${index + 1}. ${name}</h4>
+                                        <p>${address}</p>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            listEl.innerHTML = "<p>No nearby hospitals found within 5km.</p>";
+                        }
+                    }
+                });
+            } else {
+                listEl.innerHTML = "<p style='color:red;'>Mappls Nearby plugin is loading. Please retry in a few seconds.</p>";
+            }
         }
     </script>
 </body>
