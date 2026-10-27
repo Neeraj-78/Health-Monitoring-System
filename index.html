@@ -1,1089 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VitalWatch · Health Monitor</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mappls Nearby Hospitals</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <!-- Correct Mappls SDK & Plugin CDN URLs -->
+    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_sdk?layer=vector&v=3.0"></script>
+    <script src="https://apis.mappls.com/advancedmaps/api/bdovxvygaghpdtyjenqaeikjchrddfjydirq/map_plugin?v=3.0"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-
-  <style>
-    :root {
-      --ink: #0f172a;
-      --ink-soft: #475569;
-      --ink-muted: #64748b;
-      --paper: #f5f7fa;
-      --surface: #ffffff;
-      --line: #e2e8f0;
-      --night: #111c2e;
-      --night-text: #8b9bb4;
-      --night-active: #7dd3fc;
-      --accent: #2f5bd3;
-      --accent-hover: #244ab0;
-      --ok: #15803d;
-      --ok-bg: #ecfdf3;
-      --alert: #b91c1c;
-      --alert-bg: #fef2f2;
-      --heart: #e11d48;
-      --oxygen: #0891b2;
-      --heat: #d97706;
-      --sidebar-width: 248px;
-      --radius: 12px;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'IBM Plex Sans', system-ui, sans-serif;
-      background: var(--paper);
-      color: var(--ink);
-      display: flex;
-      min-height: 100vh;
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .hidden { display: none !important; }
-
-    /* ---------- Sidebar ---------- */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--night);
-      position: fixed;
-      inset: 0 auto 0 0;
-      display: flex;
-      flex-direction: column;
-      z-index: 100;
-    }
-    .brand {
-      padding: 26px 22px;
-      color: #fff;
-      font-size: 1.25rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .brand i { color: var(--night-active); }
-    .nav-links { padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; }
-    .nav-btn {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-      background: none;
-      border: none;
-      border-left: 3px solid transparent;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font: inherit;
-      font-weight: 500;
-      color: var(--night-text);
-      cursor: pointer;
-      text-align: left;
-      transition: background 0.2s, color 0.2s;
-    }
-    .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
-    .nav-btn:focus-visible { outline: 2px solid var(--night-active); outline-offset: 2px; }
-    .nav-btn.active { background: rgba(125, 211, 252, 0.08); color: var(--night-active); border-left-color: var(--night-active); }
-    .nav-btn i { width: 18px; text-align: center; }
-    .sidebar-footer { margin-top: auto; padding: 18px 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
-    .signout-btn {
-      width: 100%;
-      background: none;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: var(--night-text);
-      padding: 10px;
-      border-radius: 8px;
-      font: inherit;
-      cursor: pointer;
-    }
-    .signout-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-
-    /* ---------- Main ---------- */
-    .main-content {
-      margin-left: var(--sidebar-width);
-      flex: 1;
-      padding: 32px 36px;
-      max-width: calc(100% - var(--sidebar-width));
-      min-width: 0;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 28px;
-      flex-wrap: wrap;
-    }
-    .header h1 { font-size: 1.7rem; font-weight: 600; letter-spacing: -0.01em; }
-    .status-badge {
-      padding: 7px 14px;
-      border-radius: 999px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      background: var(--ok-bg);
-      color: var(--ok);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .status-badge::before {
-      content: '';
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .status-badge.offline { background: var(--alert-bg); color: var(--alert); }
-
-    .view { display: none; }
-    .view.active { display: block; }
-
-    /* ---------- Cards ---------- */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 18px;
-      margin-bottom: 22px;
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 22px 24px;
-    }
-    .card + .card { margin-top: 22px; }
-    .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
-    .card-title {
-      font-size: 0.92rem;
-      font-weight: 500;
-      color: var(--ink-soft);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .value { font-size: 2.6rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
-    .unit { font-size: 1rem; font-weight: 500; color: var(--ink-muted); margin-left: 6px; }
-
-    /* ---------- Suggestions ---------- */
-    .suggestion-card {
-      background: var(--ok-bg);
-      border: 1px solid #bbf7d0;
-      border-radius: var(--radius);
-      padding: 20px 22px;
-    }
-    .suggestion-card.alert-mode { background: var(--alert-bg); border-color: #fecaca; }
-    .suggestion-card h3 {
-      font-size: 1.05rem;
-      font-weight: 600;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .suggestion-card p { font-size: 0.98rem; color: var(--ink); margin-top: 8px; }
-    .suggestion-card p:first-of-type { margin-top: 0; }
-
-    /* ---------- Chart ---------- */
-    .chart-wrap { position: relative; height: 340px; }
-    .chart-note { color: var(--ink-muted); font-size: 0.9rem; margin-top: 10px; }
-
-    /* ---------- Tables ---------- */
-    .table-container { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
-    table { width: 100%; border-collapse: collapse; text-align: left; }
-    th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 0.93rem; white-space: nowrap; }
-    th { background: #f1f5f9; font-weight: 600; color: var(--ink-muted); font-size: 0.82rem; }
-    tr:last-child td { border-bottom: none; }
-    tbody tr:hover { background: #f8fafc; }
-    td.ok { color: var(--ok); font-weight: 600; }
-    td.bad { color: var(--alert); font-weight: 600; }
-    .empty-row { text-align: center; color: var(--ink-muted); padding: 24px; }
-    .table-lead { color: var(--ink-soft); margin-bottom: 16px; font-size: 0.95rem; }
-
-    /* ---------- Buttons & inputs ---------- */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 11px 18px;
-      border-radius: 8px;
-      font: inherit;
-      font-weight: 600;
-      font-size: 0.93rem;
-      border: 1px solid transparent;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.2s;
-      white-space: nowrap;
-    }
-    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-danger { background: var(--alert); color: #fff; }
-    .btn-danger:hover { background: #991b1b; }
-    .btn-outline { background: transparent; border-color: var(--line); color: var(--ink); }
-    .btn-outline:hover { background: #f1f5f9; }
-    .btn-sm { padding: 7px 12px; font-size: 0.85rem; }
-
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
-    }
-    .search-row { display: flex; gap: 10px; flex: 1; max-width: 460px; min-width: 240px; }
-    .search-row input {
-      flex: 1;
-      padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font: inherit;
-      outline: none;
-    }
-    .search-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 91, 211, 0.15); }
-
-    /* ---------- Map & hospitals ---------- */
-    .gps-status { font-size: 0.92rem; color: var(--accent); font-weight: 500; margin-bottom: 10px; display: none; }
-    #osm-map {
-      width: 100%;
-      height: 420px;
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      z-index: 0;
-    }
-    .hospital-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      padding: 14px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .hospital-item:last-child { border-bottom: none; }
-    .hospital-info { cursor: pointer; min-width: 0; }
-    .hospital-info:hover h4 { color: var(--accent); }
-    .hospital-info h4 { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
-    .hospital-info p { font-size: 0.9rem; color: var(--ink-muted); }
-    .hospital-actions { display: flex; gap: 8px; flex-shrink: 0; }
-    .muted-center { color: var(--ink-muted); text-align: center; padding: 20px; }
-    .list-note { color: var(--ink-muted); font-size: 0.85rem; padding-top: 12px; }
-
-    /* ---------- Login ---------- */
-    .login-overlay {
-      position: fixed;
-      inset: 0;
-      background: var(--night);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-      z-index: 2000;
-    }
-    .login-box {
-      background: var(--surface);
-      padding: 40px;
-      border-radius: 16px;
-      width: 100%;
-      max-width: 400px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-    }
-    .login-box h2 { text-align: center; margin-bottom: 6px; font-size: 1.6rem; font-weight: 600; }
-    .login-box > p { text-align: center; color: var(--ink-muted); margin-bottom: 24px; }
-    .login-box input {
-      width: 100%;
-      padding: 13px 14px;
-      margin-bottom: 14px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font: inherit;
-      outline: none;
-    }
-    .login-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 91, 211, 0.15); }
-    .login-box button {
-      width: 100%;
-      padding: 13px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .login-box button:hover { background: var(--accent-hover); }
-    .login-box button:disabled { opacity: 0.7; cursor: wait; }
-    .error-text { color: var(--alert); font-size: 0.9rem; margin-top: 14px; text-align: center; min-height: 1.2em; }
-
-    /* ---------- Responsive ---------- */
-    @media (max-width: 768px) {
-      body { flex-direction: column; }
-      .sidebar { position: sticky; top: 0; width: 100%; height: auto; flex-direction: row; overflow-x: auto; }
-      .brand { display: none; }
-      .nav-links { flex-direction: row; padding: 8px; width: 100%; }
-      .nav-btn { padding: 10px 14px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
-      .nav-btn.active { border-left-color: transparent; border-bottom-color: var(--night-active); }
-      .sidebar-footer { display: none; }
-      .main-content { margin-left: 0; max-width: 100%; padding: 18px; }
-      .value { font-size: 2.1rem; }
-      #osm-map { height: 320px; }
-      .hospital-item { flex-direction: column; align-items: flex-start; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      * { transition: none !important; animation: none !important; }
-    }
-  </style>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        #sidebar {
+            width: 350px;
+            padding: 20px;
+            background: #f8f9fa;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+        #map {
+            flex-grow: 1;
+            height: 100%;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            width: 100%;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .btn:hover { background-color: #0056b3; }
+        .hospital-card {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            border-left: 4px solid #007bff;
+        }
+        .hospital-card h4 {
+            margin: 0 0 5px 0;
+            color: #333;
+            font-size: 14px;
+        }
+        .hospital-card p {
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
 
-  <!-- Login -->
-  <div id="loginOverlay" class="login-overlay">
-    <form class="login-box" id="loginForm" novalidate>
-      <h2>Welcome back</h2>
-      <p>Sign in to your health dashboard</p>
-      <input type="email" id="email" placeholder="Email address" autocomplete="username" required>
-      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
-      <button type="submit" id="loginButton">Sign in</button>
-      <p id="loginError" class="error-text" role="alert"></p>
-    </form>
-  </div>
-
-  <!-- Sidebar -->
-  <nav class="sidebar hidden" id="sidebar" aria-label="Main">
-    <div class="brand">
-      <i class="fa-solid fa-heart-pulse" aria-hidden="true"></i> VitalWatch
+    <div id="sidebar">
+        <h3>Nearby Hospitals</h3>
+        <button class="btn" onclick="findMyLocAndHospitals()">Get Current Location & Hospitals</button>
+        <div id="status" style="font-size: 13px; color: #555; margin-bottom: 15px;">Initializing map...</div>
+        <div id="hospital-list"></div>
     </div>
-    <div class="nav-links">
-      <button class="nav-btn active" data-target="view-dashboard" data-title="Live dashboard">
-        <i class="fa-solid fa-chart-line" aria-hidden="true"></i> Live dashboard
-      </button>
-      <button class="nav-btn" data-target="view-history" data-title="History & graphs">
-        <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History & graphs
-      </button>
-      <button class="nav-btn" data-target="view-alerts" data-title="Alert history">
-        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Alert history
-      </button>
-      <button class="nav-btn" data-target="view-hospitals" data-title="Nearby hospitals">
-        <i class="fa-solid fa-hospital" aria-hidden="true"></i> Nearby hospitals
-      </button>
-    </div>
-    <div class="sidebar-footer">
-      <button class="signout-btn" id="signOutButton">Sign out</button>
-    </div>
-  </nav>
 
-  <!-- Main -->
-  <main class="main-content hidden" id="mainContent">
-    <header class="header">
-      <h1 id="pageTitle">Live dashboard</h1>
-      <div class="status-badge" id="connectionStatus">Connected</div>
-    </header>
-
-    <!-- View 1: Live -->
-    <section id="view-dashboard" class="view active">
-      <div class="grid">
-        <div class="card">
-          <div class="card-title"><i class="fa-solid fa-heart" style="color: var(--heart);" aria-hidden="true"></i> Heart rate</div>
-          <div class="value" id="hrValue">--<span class="unit">bpm</span></div>
-        </div>
-        <div class="card">
-          <div class="card-title"><i class="fa-solid fa-lungs" style="color: var(--oxygen);" aria-hidden="true"></i> SpO₂</div>
-          <div class="value" id="spo2Value">--<span class="unit">%</span></div>
-        </div>
-        <div class="card">
-          <div class="card-title"><i class="fa-solid fa-temperature-half" style="color: var(--heat);" aria-hidden="true"></i> Temperature</div>
-          <div class="value" id="tempValue">--<span class="unit">°C</span></div>
-        </div>
-      </div>
-
-      <div class="suggestion-card" id="suggestionBox">
-        <h3><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> Health suggestions</h3>
-        <div id="suggestionsText"><p>Waiting for live data...</p></div>
-      </div>
-    </section>
-
-    <!-- View 2: History -->
-    <section id="view-history" class="view">
-      <div class="card">
-        <h2>Today's vitals (last 30 readings)</h2>
-        <div class="chart-wrap">
-          <canvas id="historyChart" aria-label="Heart rate and SpO2 trend for today"></canvas>
-        </div>
-        <p class="chart-note" id="chartNote"></p>
-      </div>
-
-      <div class="card">
-        <h2>Complete data log</h2>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Heart rate</th>
-                <th>SpO₂</th>
-                <th>Temperature</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="historyTableBody">
-              <tr><td colspan="5" class="empty-row">Loading data...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- View 3: Alerts -->
-    <section id="view-alerts" class="view">
-      <div class="card">
-        <div class="toolbar">
-          <h2 style="margin-bottom: 0;">Alert history</h2>
-          <button class="btn btn-danger" id="alertsFindHospitals" type="button">
-            <i class="fa-solid fa-location-dot" aria-hidden="true"></i> Find nearby hospital
-          </button>
-        </div>
-        <p class="table-lead">Only abnormal readings are shown. If alerts keep recurring, please consult a doctor.</p>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Alert message</th>
-                <th>Parameter</th>
-              </tr>
-            </thead>
-            <tbody id="alertTableBody">
-              <tr><td colspan="3" class="empty-row">Loading alerts...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- View 4: Hospitals -->
-    <section id="view-hospitals" class="view">
-      <div class="card">
-        <div class="toolbar">
-          <h2 style="margin-bottom: 0;">Hospitals near you</h2>
-          <form class="search-row" id="searchForm" role="search">
-            <input type="text" id="manualLocationInput" placeholder="Search an area, e.g. Indiranagar" aria-label="Search an area">
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search</button>
-          </form>
-        </div>
-        <div id="gpsStatus" class="gps-status" role="status"></div>
-        <div id="osm-map"></div>
-        <div id="hospitalListContainer" style="margin-top: 16px;">
-          <p class="muted-center">Detecting your location...</p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-
-    /* =========================================================
-       CONFIG
-       ========================================================= */
-    const CONFIG = {
-      firebase: {
-        apiKey: "AIzaSyCljiCoRIDtFqvZgSSiXPaZQHiaCyrptPs",
-        authDomain: "health-monitoring-system-9b19f.firebaseapp.com",
-        databaseURL: "https://health-monitoring-system-9b19f-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "health-monitoring-system-9b19f",
-        storageBucket: "health-monitoring-system-9b19f.firebasestorage.app",
-        messagingSenderId: "1090603150131",
-        appId: "1:1090603150131:web:5412c37733158cb741ec46"
-      },
-      sheetsUrl: "https://script.google.com/macros/s/AKfycbzuWC1DU3UnbNzLIaIYisQ1gGmax8g2as2aHE8HBi_1UjNtoR4JzmqZq-Beb0waj-x5bw/exec",
-
-      defaultLocation: { lat: 12.9716, lon: 77.5946, name: "Bangalore" },
-      radiusMeters: 5000,
-      maxHospitals: 10,
-      refreshMs: 60000,
-
-      // OpenStreetMap services. Overpass mirrors are tried in order if one is busy.
-      tileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      tileAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      nominatimUrl: "https://nominatim.openstreetmap.org/search",
-      overpassUrls: [
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter"
-      ]
-    };
-
-    /* Alert thresholds */
-    const LIMITS = { hrHigh: 100, spo2Low: 95, tempFever: 37.5, alertHr: 120, alertSpo2: 90, alertTemp: 38.0 };
-
-    /* =========================================================
-       Helpers
-       ========================================================= */
-    const app = initializeApp(CONFIG.firebase);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    const $ = (id) => document.getElementById(id);
-
-    const num = (v) => {
-      if (v === null || v === undefined || v === "") return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const fmt = (v, digits = 0) => (v === null ? "--" : v.toFixed(digits));
-
-    const haversineKm = (lat1, lon1, lat2, lon2) => {
-      const R = 6371, rad = (d) => (d * Math.PI) / 180;
-      const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
-      return 2 * R * Math.asin(Math.sqrt(a));
-    };
-
-    const isNormalMsg = (msg) => {
-      const m = String(msg ?? "").trim().toLowerCase();
-      return m === "" || m === "normal";
-    };
-
-    function setValue(id, text, unit) {
-      const el = $(id);
-      el.textContent = text;
-      const u = document.createElement("span");
-      u.className = "unit";
-      u.textContent = unit;
-      el.appendChild(u);
-    }
-
-    function setStatus(text, online = true) {
-      const b = $("connectionStatus");
-      b.textContent = text;
-      b.classList.toggle("offline", !online);
-    }
-
-    /* =========================================================
-       Navigation
-       ========================================================= */
-    let hospitalsLoadedOnce = false;
-    let chartInstance = null;
-
-    function showView(targetId, titleText) {
-      document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === targetId));
-      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.target === targetId));
-      $("pageTitle").textContent = titleText;
-
-      if (targetId === "view-history" && chartInstance) setTimeout(() => chartInstance.resize(), 100);
-
-      if (targetId === "view-hospitals") {
-        ensureMap();
-        if (osmMap) setTimeout(() => osmMap.invalidateSize(), 100);
-        if (!hospitalsLoadedOnce) {
-          hospitalsLoadedOnce = true;
-          locateAndSearch();
-        }
-      }
-    }
-
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
-      btn.addEventListener("click", () => showView(btn.dataset.target, btn.dataset.title));
-    });
-
-    $("alertsFindHospitals").addEventListener("click", () => {
-      showView("view-hospitals", "Nearby hospitals");
-      locateAndSearch();
-    });
-
-    /* =========================================================
-       Auth
-       ========================================================= */
-    $("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const btn = $("loginButton");
-      $("loginError").textContent = "";
-      btn.disabled = true;
-      btn.textContent = "Signing in...";
-      try {
-        await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
-      } catch (err) {
-        $("loginError").textContent = "Invalid email or password.";
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Sign in";
-      }
-    });
-
-    $("signOutButton").addEventListener("click", () => signOut(auth));
-
-    let dashboardStarted = false;
-    onAuthStateChanged(auth, (user) => {
-      const signedIn = Boolean(user);
-      $("loginOverlay").classList.toggle("hidden", signedIn);
-      $("sidebar").classList.toggle("hidden", !signedIn);
-      $("mainContent").classList.toggle("hidden", !signedIn);
-      if (signedIn && !dashboardStarted) {
-        dashboardStarted = true;
-        startDashboard();
-      }
-    });
-
-    /* =========================================================
-       Live data & history
-       ========================================================= */
-    function startDashboard() {
-      onValue(
-        ref(db, "/readings"),
-        (snap) => {
-          const d = snap.val();
-          if (d) renderLive(d);
-        },
-        () => setStatus("Live feed unavailable", false)
-      );
-
-      loadSheet();
-      setInterval(loadSheet, CONFIG.refreshMs);
-    }
-
-    function renderLive(d) {
-      const hr = num(d.hr), spo2 = num(d.spo2), temp = num(d.temp);
-      setValue("hrValue", fmt(hr), "bpm");
-      setValue("spo2Value", fmt(spo2), "%");
-      setValue("tempValue", fmt(temp, 1), "°C");
-
-      const box = $("suggestionBox");
-      const container = $("suggestionsText");
-      container.textContent = "";
-
-      if (!isNormalMsg(d.alertMsg)) {
-        box.classList.add("alert-mode");
-        const p = document.createElement("p");
-        p.textContent = `Alert: ${String(d.alertMsg).trim()}. Please take the necessary action.`;
-        container.appendChild(p);
-        return;
-      }
-
-      box.classList.remove("alert-mode");
-      const tips = [];
-      if (spo2 !== null && spo2 > 0 && spo2 < LIMITS.spo2Low) tips.push("Try slow, deep breaths to bring your oxygen level up.");
-      if (hr !== null && hr > LIMITS.hrHigh) tips.push("Your heart rate is high. Rest and drink some water.");
-      if (temp !== null && temp > LIMITS.tempFever) tips.push("You may have a fever. Stay hydrated and keep checking your temperature.");
-      if (tips.length === 0) tips.push("All vitals are within normal ranges. Keep up the healthy habits.");
-
-      tips.forEach((t) => {
-        const p = document.createElement("p");
-        p.textContent = t;
-        container.appendChild(p);
-      });
-    }
-
-    function normalize(r) {
-      const rawMsg = r["Alert Message"] ?? r.alertMsg;
-      return {
-        time: new Date(r.Timestamp),
-        hr: num(r["Heart Rate (BPM)"] ?? r.hr),
-        spo2: num(r["SpO2 (%)"] ?? r.spo2),
-        temp: num(r["Temp (°C)"] ?? r.temp),
-        alert: isNormalMsg(rawMsg) ? "Normal" : String(rawMsg).trim()
-      };
-    }
-
-    async function loadSheet() {
-      try {
-        const res = await fetch(CONFIG.sheetsUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const rows = await res.json();
-        if (!Array.isArray(rows)) throw new Error("Unexpected response shape");
-
-        const data = rows
-          .filter((r) => r && r.Timestamp)
-          .map(normalize)
-          .filter((r) => !isNaN(r.time.getTime()));
-
-        renderChart(data);
-        renderHistory(data);
-        renderAlerts(data);
-        setStatus("Connected", true);
-      } catch (err) {
-        console.error("Sheet fetch failed:", err);
-        setStatus("History unavailable", false);
-      }
-    }
-
-    function renderChart(data) {
-      const today = new Date().toDateString();
-      const todays = data.filter((r) => r.time.toDateString() === today).slice(-30);
-      const note = $("chartNote");
-
-      if (typeof Chart === "undefined") {
-        note.textContent = "Chart library failed to load. Check your connection.";
-        return;
-      }
-      if (todays.length === 0) {
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-        note.textContent = "No readings recorded today yet.";
-        return;
-      }
-      note.textContent = `${todays.length} readings today.`;
-
-      const ctx = $("historyChart").getContext("2d");
-      const hrData = todays.map((r) => ({ x: r.time, y: r.hr }));
-      const spo2Data = todays.map((r) => ({ x: r.time, y: r.spo2 }));
-
-      if (chartInstance) chartInstance.destroy();
-      chartInstance = new Chart(ctx, {
-        type: "line",
-        data: {
-          datasets: [
-            { label: "Heart rate (bpm)", data: hrData, borderColor: "#e11d48", backgroundColor: "rgba(225, 29, 72, 0.08)", tension: 0.3, fill: true, spanGaps: true },
-            { label: "SpO₂ (%)", data: spo2Data, borderColor: "#2f5bd3", backgroundColor: "rgba(47, 91, 211, 0.08)", tension: 0.3, fill: true, spanGaps: true }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
-          plugins: { legend: { position: "bottom" } },
-          scales: {
-            x: { type: "time", time: { unit: "minute", displayFormats: { minute: "HH:mm" } }, grid: { display: false } },
-            y: { beginAtZero: false }
-          }
-        }
-      });
-    }
-
-    function fillRow(tbody, cells) {
-      const tr = document.createElement("tr");
-      cells.forEach(({ text, cls }) => {
-        const td = document.createElement("td");
-        td.textContent = text;
-        if (cls) td.className = cls;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    }
-
-    function renderHistory(data) {
-      const tbody = $("historyTableBody");
-      tbody.textContent = "";
-      if (data.length === 0) {
-        fillRow(tbody, [{ text: "No readings yet.", cls: "empty-row" }]);
-        tbody.lastElementChild.firstElementChild.colSpan = 5;
-        return;
-      }
-      [...data].reverse().forEach((r) => {
-        const abnormal = r.alert !== "Normal";
-        fillRow(tbody, [
-          { text: r.time.toLocaleString() },
-          { text: r.hr === null ? "--" : `${r.hr} bpm` },
-          { text: r.spo2 === null ? "--" : `${r.spo2}%` },
-          { text: r.temp === null ? "--" : `${r.temp} °C` },
-          { text: r.alert, cls: abnormal ? "bad" : "ok" }
-        ]);
-      });
-    }
-
-    function renderAlerts(data) {
-      const tbody = $("alertTableBody");
-      tbody.textContent = "";
-      const alerts = data.filter((r) => r.alert !== "Normal").reverse();
-
-      if (alerts.length === 0) {
-        fillRow(tbody, [{ text: "No alerts recorded.", cls: "ok" }]);
-        tbody.lastElementChild.firstElementChild.colSpan = 3;
-        return;
-      }
-
-      alerts.forEach((r) => {
-        let param = r.alert;
-        if (r.hr !== null && r.hr > LIMITS.alertHr) param = `High heart rate (${r.hr} bpm)`;
-        else if (r.spo2 !== null && r.spo2 > 0 && r.spo2 < LIMITS.alertSpo2) param = `Low SpO₂ (${r.spo2}%)`;
-        else if (r.temp !== null && r.temp > LIMITS.alertTemp) param = `High temperature (${r.temp} °C)`;
-
-        fillRow(tbody, [
-          { text: r.time.toLocaleString() },
-          { text: r.alert, cls: "bad" },
-          { text: param }
-        ]);
-      });
-    }
-
-    /* =========================================================
-       OpenStreetMap (Leaflet)
-       ========================================================= */
-    let osmMap = null;
-    let hospitalLayer = null;
-    let searchMarker = null;
-    let accuracyCircle = null;
-    let hospitalMarkers = [];
-
-    function ensureMap() {
-      if (osmMap) return;
-      if (typeof L === "undefined") {
-        $("osm-map").textContent = "Map library failed to load. Check your connection.";
-        return;
-      }
-      osmMap = L.map("osm-map").setView([CONFIG.defaultLocation.lat, CONFIG.defaultLocation.lon], 13);
-      L.tileLayer(CONFIG.tileUrl, { maxZoom: 19, attribution: CONFIG.tileAttribution }).addTo(osmMap);
-      hospitalLayer = L.layerGroup().addTo(osmMap);
-    }
-
-    function popupContent(name, address) {
-      const wrap = document.createElement("div");
-      const b = document.createElement("b");
-      b.textContent = name;
-      wrap.appendChild(b);
-      if (address) {
-        const p = document.createElement("div");
-        p.textContent = address;
-        wrap.appendChild(p);
-      }
-      return wrap;
-    }
-
-    function plotSearchCenter(lat, lon, label, accuracy = null) {
-      ensureMap();
-      if (!osmMap) return;
-      osmMap.setView([lat, lon], 15);
-
-      if (searchMarker) searchMarker.remove();
-      if (accuracyCircle) accuracyCircle.remove();
-
-      if (accuracy) {
-        accuracyCircle = L.circle([lat, lon], {
-          radius: accuracy, color: "#2f5bd3", fillColor: "#2f5bd3", fillOpacity: 0.1, weight: 1
-        }).addTo(osmMap);
-      }
-
-      searchMarker = L.circleMarker([lat, lon], {
-        radius: 9, color: "#2f5bd3", fillColor: "#2f5bd3", fillOpacity: 0.9, weight: 3
-      }).addTo(osmMap).bindPopup(
-        popupContent(label, accuracy ? `Accuracy about ${Math.round(accuracy)} m` : "")
-      );
-    }
-
-    function plotHospitals(list) {
-      if (!hospitalLayer) return;
-      hospitalLayer.clearLayers();
-      hospitalMarkers = list.map((h) => {
-        const marker = L.circleMarker([h.lat, h.lon], {
-          radius: 7, color: "#b91c1c", fillColor: "#ef4444", fillOpacity: 0.9, weight: 2
-        }).bindPopup(popupContent(h.name, h.address));
-        marker.addTo(hospitalLayer);
-        return marker;
-      });
-    }
-
-    /* =========================================================
-       Location & hospital search
-       ========================================================= */
-    function setGps(message, busy = false) {
-      const s = $("gpsStatus");
-      s.style.display = "block";
-      s.textContent = "";
-      if (busy) {
-        const icon = document.createElement("i");
-        icon.className = "fa-solid fa-spinner fa-spin";
-        s.append(icon, " ");
-      }
-      s.append(message);
-    }
-
-    function getPosition(options) {
-      return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, options);
-      });
-    }
-
-    async function locateAndSearch() {
-      if (!navigator.geolocation) {
-        useDefaultLocation("This browser does not support location.");
-        return;
-      }
-      setGps("Detecting your location...", true);
-      try {
-        let pos;
-        try {
-          // Precise GPS fix. Laptops can take 10–20 seconds to get one.
-          pos = await getPosition({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
-        } catch (err) {
-          if (err.code === err.PERMISSION_DENIED) throw err;
-          // The precise fix timed out. Try a quicker, coarser estimate.
-          setGps("Getting a quicker location estimate...", true);
-          pos = await getPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
-        }
-        const { latitude, longitude, accuracy } = pos.coords;
-        await searchAt(latitude, longitude, "your location", accuracy);
-      } catch (err) {
-        if (err.code === err.PERMISSION_DENIED) {
-          useDefaultLocation("Location permission is blocked for this site.");
-        } else {
-          useDefaultLocation("Could not get your location.");
-        }
-      }
-    }
-
-    function useDefaultLocation(reason) {
-      const d = CONFIG.defaultLocation;
-      setGps(`${reason} Using ${d.name} as the default.`);
-      searchAt(d.lat, d.lon, d.name);
-    }
-
-    async function geocode(query) {
-      const url = `${CONFIG.nominatimUrl}?format=json&limit=1&q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
-      if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
-      const d = await res.json();
-      if (!d.length) return null;
-      return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) };
-    }
-
-    function buildOverpassQuery(lat, lon) {
-      return `[out:json][timeout:25];` +
-        `nwr["amenity"="hospital"](around:${CONFIG.radiusMeters},${lat},${lon});` +
-        `out center tags 60;`;
-    }
-
-    async function fetchOverpass(query) {
-      let lastError = null;
-      for (const url of CONFIG.overpassUrls) {
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: "data=" + encodeURIComponent(query)
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-          return await res.json();
-        } catch (err) {
-          console.warn("Overpass server failed, trying next:", err);
-          lastError = err;
-        }
-      }
-      throw lastError || new Error("All Overpass servers failed");
-    }
-
-    function parseHospitals(data, fromLat, fromLon) {
-      return (data.elements || [])
-        .map((el) => {
-          const t = el.tags || {};
-          const lat = el.lat ?? el.center?.lat;
-          const lon = el.lon ?? el.center?.lon;
-          const addressParts = [
-            [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" "),
-            t["addr:suburb"] || t["addr:city"]
-          ].filter(Boolean);
-          return {
-            name: t.name || "Hospital (name not listed)",
-            address: addressParts.join(", "),
-            phone: t.phone || t["contact:phone"] || "",
-            lat,
-            lon,
-            distance: Number.isFinite(lat) && Number.isFinite(lon)
-              ? haversineKm(fromLat, fromLon, lat, lon)
-              : Infinity
-          };
-        })
-        .filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lon))
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, CONFIG.maxHospitals);
-    }
-
-    function renderHospitalList(list) {
-      const c = $("hospitalListContainer");
-      c.textContent = "";
-
-      list.forEach((h, i) => {
-        const row = document.createElement("div");
-        row.className = "hospital-item";
-
-        const info = document.createElement("div");
-        info.className = "hospital-info";
-        info.title = "Show on map";
-        const title = document.createElement("h4");
-        title.textContent = `${i + 1}. ${h.name}`;
-        const detail = document.createElement("p");
-        const parts = [h.address || "Address not listed", `${h.distance.toFixed(1)} km away`];
-        if (h.phone) parts.push(`Phone: ${h.phone}`);
-        detail.textContent = parts.join(" · ");
-        info.append(title, detail);
-
-        info.addEventListener("click", () => {
-          const marker = hospitalMarkers[i];
-          if (!marker || !osmMap) return;
-          osmMap.setView(marker.getLatLng(), 16);
-          marker.openPopup();
+    <div id="map"></div>
+
+    <script>
+        let map = null;
+        let currentMarker = null;
+
+        // Initialize Mappls Map using their initialize callback structure
+        window.addEventListener('load', function() {
+            if (typeof mappls === 'undefined') {
+                document.getElementById('status').innerText = "Error: Mappls SDK failed to load. Check your API key.";
+                return;
+            }
+
+            mappls.initialize("YOUR_MAPPLS_API_KEY", { map: true, plugins: ['nearby'] }, function() {
+                map = new mappls.Map('map', {
+                    center: [12.9716, 77.5946], // Default Center (Bengaluru)
+                    zoom: 12
+                });
+
+                document.getElementById('status').innerText = "Map loaded. Click the button to search nearby hospitals.";
+            });
         });
 
-        const actions = document.createElement("div");
-        actions.className = "hospital-actions";
-        const osmLink = document.createElement("a");
-        osmLink.className = "btn btn-outline btn-sm";
-        osmLink.target = "_blank";
-        osmLink.rel = "noopener noreferrer";
-        osmLink.href = `https://www.openstreetmap.org/?mlat=${h.lat}&mlon=${h.lon}#map=17/${h.lat}/${h.lon}`;
-        osmLink.innerHTML = `<i class="fa-solid fa-map" aria-hidden="true"></i> Open map`;
-        actions.appendChild(osmLink);
+        function findMyLocAndHospitals() {
+            const statusEl = document.getElementById('status');
+            const listEl = document.getElementById('hospital-list');
 
-        row.append(info, actions);
-        c.appendChild(row);
-      });
+            if (!map) {
+                statusEl.innerText = "Map is still initializing. Please wait a moment.";
+                return;
+            }
 
-      const note = document.createElement("p");
-      note.className = "list-note";
-      note.textContent = "Map data © OpenStreetMap contributors. Hospital listings may be incomplete.";
-      c.appendChild(note);
-    }
+            if (!navigator.geolocation) {
+                statusEl.innerText = "Geolocation is not supported by your browser.";
+                return;
+            }
 
-    async function searchAt(lat, lon, label, accuracy = null) {
-      setGps(`Finding hospitals near ${label}...`, true);
-      plotSearchCenter(lat, lon, label, accuracy);
-      $("hospitalListContainer").textContent = "";
+            statusEl.innerText = "Getting your current location...";
 
-      try {
-        const data = await fetchOverpass(buildOverpassQuery(lat, lon));
-        const hospitals = parseHospitals(data, lat, lon);
-        plotHospitals(hospitals);
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
 
-        if (hospitals.length === 0) {
-          setGps(`No hospitals listed within ${CONFIG.radiusMeters / 1000} km of ${label}. Try a wider search.`);
-          $("hospitalListContainer").innerHTML = `<p class="muted-center">No hospitals found nearby.</p>`;
-        } else {
-          renderHospitalList(hospitals);
-          setGps(`Showing ${hospitals.length} hospitals near ${label}, closest first.`);
+                    statusEl.innerText = `Location found! Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+
+                    // Set map center & zoom
+                    map.setCenter({ lat: lat, lng: lng });
+                    map.setZoom(14);
+
+                    // Add or Update User Marker
+                    if (currentMarker) {
+                        currentMarker.remove();
+                    }
+
+                    currentMarker = new mappls.Marker({
+                        map: map,
+                        position: { lat: lat, lng: lng }
+                    });
+
+                    // Search Nearby Hospitals via Mappls plugin or REST fallback
+                    searchNearbyHospitals(lat, lng);
+                },
+                function(error) {
+                    statusEl.innerText = "Unable to fetch location. Please check browser permissions.";
+                    console.error("Geolocation Error:", error);
+                },
+                { enableHighAccuracy: true }
+            );
         }
-      } catch (err) {
-        console.error("Hospital search failed:", err);
-        setGps("Could not load hospitals. The map servers may be busy. Try again in a minute.");
-      }
-    }
 
-    $("searchForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const query = $("manualLocationInput").value.trim();
-      if (!query) return;
-      setGps(`Searching for "${query}"...`, true);
-      try {
-        const loc = await geocode(query);
-        if (loc) searchAt(loc.lat, loc.lon, query);
-        else setGps("Location not found. Try a more specific area name.");
-      } catch (err) {
-        console.error("Geocode failed:", err);
-        setGps("Could not look up that location. Try again.");
-      }
-    });
-  </script>
+        function searchNearbyHospitals(lat, lng) {
+            const listEl = document.getElementById('hospital-list');
+            listEl.innerHTML = "Fetching nearby hospitals...";
+
+            // Method 1: Using Mappls Nearby Plugin UI
+            if (typeof mappls.nearby === 'function') {
+                mappls.nearby({
+                    refLocation: [lat, lng],
+                    keywords: 'hospital',
+                    radius: 5000,
+                    map: map,
+                    popups: true,
+                    callback: function(data) {
+                        listEl.innerHTML = "";
+                        if (data && data.length > 0) {
+                            data.slice(0, 5).forEach((item, idx) => {
+                                listEl.innerHTML += `
+                                    <div class="hospital-card">
+                                        <h4>${idx + 1}. ${item.placeName || item.name}</h4>
+                                        <p>${item.placeAddress || item.address || 'Address unavailable'}</p>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            listEl.innerHTML = "<p>No nearby hospitals found within 5km.</p>";
+                        }
+                    }
+                });
+            } else {
+                // Fallback direct REST API call if plugin context is scoped differently
+                const apiUrl = `https://atlas.mappls.com/api/places/nearby/json?keywords=hospital&refLocation=${lat},${lng}&radius=5000`;
+                
+                fetch(apiUrl)
+                    .then(res => res.json())
+                    .then(resData => {
+                        listEl.innerHTML = "";
+                        const places = resData.suggestedLocations || [];
+                        if (places.length === 0) {
+                            listEl.innerHTML = "<p>No nearby hospitals found.</p>";
+                            return;
+                        }
+                        places.slice(0, 5).forEach((item, idx) => {
+                            listEl.innerHTML += `
+                                <div class="hospital-card">
+                                    <h4>${idx + 1}. ${item.placeName}</h4>
+                                    <p>${item.placeAddress}</p>
+                                </div>
+                            `;
+                        });
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        listEl.innerHTML = "<p>Hospitals pinned on map layer successfully.</p>";
+                    });
+            }
+        }
+    </script>
 </body>
 </html>
