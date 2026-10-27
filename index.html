@@ -522,8 +522,6 @@
 
       // Same key as the script tag in <head>
       mapplsKey: "bdovxvygaghpdtyjenqaeikjchrddfjydirq",
-      mapplsNearbyUrl: "https://search.mappls.com/api/places/nearby/json",
-      mapplsGeocodeUrl: "https://apis.mappls.com/advancedmaps/v1/KEY/geocoding",
 
       defaultLocation: { lat: 12.9716, lon: 77.5946, name: "Bangalore" },
       radiusMeters: 5000,
@@ -543,7 +541,7 @@
 
     const $ = (id) => document.getElementById(id);
 
-    // popupHtml is parsed as HTML, so escape anything that came from outside
+    // popupHtml is parsed as HTML, so escape anything from outside
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     }[c]));
@@ -581,6 +579,16 @@
       const b = $("connectionStatus");
       b.textContent = text;
       b.classList.toggle("offline", !online);
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("script failed to load"));
+        document.head.appendChild(s);
+      });
     }
 
     /* =========================================================
@@ -832,7 +840,7 @@
        Mappls map
        ========================================================= */
     let mapplsMap = null;
-    let mapLoaded = null;      // promise that resolves when the map has loaded
+    let mapLoaded = null;      // resolves when the map has loaded
     let searchMarker = null;
     let hospitalMarkers = [];
 
@@ -850,6 +858,8 @@
         });
         mapplsMap.on("load", () => resolve());
       });
+      // Allow a retry if the SDK failed to load
+      mapLoaded.catch(() => { mapLoaded = null; });
       return mapLoaded;
     }
 
@@ -937,40 +947,116 @@
     }
 
     /* =========================================================
-       Mappls geocoding and nearby search
+       Mappls search plugins (browser-side, no client credentials)
        ========================================================= */
-    async function geocode(query) {
-      const base = CONFIG.mapplsGeocodeUrl.replace("KEY", CONFIG.mapplsKey);
-      const res = await fetch(`${base}?address=${encodeURIComponent(query)}`);
-      if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
-      const d = await res.json();
-      const hit = d?.copResults?.[0];
-      if (!hit) return null;
-      return { lat: parseFloat(hit.latitude), lon: parseFloat(hit.longitude) };
+    let pluginsPromise = null;
+
+    function pluginUrls() {
+      return [
+        `https://apis.mappls.com/advancedmaps/api/${CONFIG.mapplsKey}/map_sdk_plugins?v=3.0&libraries=search`,
+        `https://sdk.mappls.com/map/sdk/plugins?v=3.0&libraries=search&access_token=${CONFIG.mapplsKey}`
+      ];
+    }
+
+    function hasSearchApi() {
+      return typeof mappls !== "undefined" &&
+        (typeof mappls.search === "function" || typeof mappls.nearby === "function");
+    }
+
+    // Loads the search plugin once. Tries each documented URL in turn.
+    function loadPlugins() {
+      if (pluginsPromise) return pluginsPromise;
+      pluginsPromise = (async () => {
+        if (typeof mappls === "undefined") throw new Error("Mappls SDK did not load.");
+        if (hasSearchApi()) return;
+
+        let lastError = null;
+        for (const url of pluginUrls()) {
+          try {
+            await loadScript(url);
+            if (hasSearchApi()) return;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+        throw new Error("Mappls search plugin did not load" + (lastError ? ` (${lastError.message})` : ""));
+      })().catch((err) => {
+        pluginsPromise = null;   // allow a retry on the next search
+        throw err;
+      });
+      return pluginsPromise;
+    }
+
+    // Wraps a callback-style Mappls call in a promise with a timeout
+    function mapplsCall(fn) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("Mappls request timed out")), 10000);
+        try {
+          fn((data) => {
+            clearTimeout(timer);
+            resolve(data);
+          });
+        } catch (err) {
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+    }
+
+    // Accepts several possible response shapes and returns a clean list
+    function extractPlaces(data) {
+      const list = Array.isArray(data)
+        ? data
+        : (data?.suggestedLocations || data?.results || data?.copResults || []);
+
+      return list
+        .map((item) => ({
+          name: item.placeName || item.name || "Medical facility",
+          address: item.placeAddress || item.address || "Address not listed",
+          lat: Number(item.latitude ?? item.lat),
+          lon: Number(item.longitude ?? item.lng ?? item.lon)
+        }))
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
     }
 
     async function findHospitals(lat, lon) {
-      const url = `${CONFIG.mapplsNearbyUrl}?keywords=hospital` +
-        `&refLocation=${lat},${lon}` +
-        `&radius=${CONFIG.radiusMeters}` +
-        `&access_token=${CONFIG.mapplsKey}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Nearby search HTTP ${res.status}`);
-      const d = await res.json();
+      await loadPlugins();
 
-      return (d.suggestedLocations || [])
-        .map((p) => ({
-          name: p.placeName || "Medical facility",
-          address: p.placeAddress || "Address not listed",
-          lat: Number(p.latitude),
-          lon: Number(p.longitude)
-        }))
-        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
+      let data;
+      if (typeof mappls.nearby === "function") {
+        data = await mapplsCall((cb) => mappls.nearby({
+          refLocation: [lat, lon],
+          keywords: "hospital",
+          radius: CONFIG.radiusMeters,
+          callback: cb
+        }));
+      } else {
+        data = await mapplsCall((cb) => mappls.search("hospital", {
+          location: `${lat},${lon}`,
+          region: "IND"
+        }, cb));
+      }
+      console.log("Mappls hospital response:", data);
+
+      const maxKm = (CONFIG.radiusMeters / 1000) * 1.2;
+      return extractPlaces(data)
         .map((p) => ({ ...p, distance: haversineKm(lat, lon, p.lat, p.lon) }))
+        .filter((p) => p.distance <= maxKm)
         .sort((a, b) => a.distance - b.distance)
         .slice(0, CONFIG.maxHospitals);
     }
 
+    async function geocode(query) {
+      await loadPlugins();
+      const data = await mapplsCall((cb) => mappls.search(query, { region: "IND" }, cb));
+      console.log("Mappls search response:", data);
+      const first = extractPlaces(data)[0];
+      return first ? { lat: first.lat, lon: first.lon } : null;
+    }
+
+    /* =========================================================
+       Hospital list & search
+       ========================================================= */
     function renderHospitalList(list) {
       const c = $("hospitalListContainer");
       c.textContent = "";
@@ -1038,8 +1124,8 @@
           setGps(`Showing ${hospitals.length} hospitals near ${label}, closest first.`);
         }
       } catch (err) {
-        console.error("Nearby search failed:", err);
-        setGps("The map is working, but the Mappls hospital search failed from this browser. Open the console for details.");
+        console.error("Hospital search failed:", err);
+        setGps(`The map is working, but the hospital search failed: ${err.message}`);
       }
     }
 
@@ -1053,8 +1139,8 @@
         if (loc) searchAt(loc.lat, loc.lon, query);
         else setGps("Location not found. Try a more specific area name.");
       } catch (err) {
-        console.error("Geocode failed:", err);
-        setGps("Mappls could not look up that location from this browser.");
+        console.error("Search failed:", err);
+        setGps(`Could not look up that location: ${err.message}`);
       }
     });
   </script>
